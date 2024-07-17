@@ -1,0 +1,13 @@
+name = "PottsEvolver"
+uuid = "288ebb56-9d8a-405a-a2d6-6ed6f22c6052"
+authors = ["Pierre Barrat-Charlaix"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.9"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
