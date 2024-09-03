@@ -3,6 +3,13 @@ uuid = "288ebb56-9d8a-405a-a2d6-6ed6f22c6052"
 authors = ["Pierre Barrat-Charlaix"]
 version = "1.0.0-DEV"
 
+[deps]
+BioSequenceMappings = "a84bc454-70cc-4f51-8a9d-ca76a5a82222"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+TreeTools = "62f0eae3-8c0e-4032-a621-7756092209e5"
+
 [compat]
 julia = "1.9"
 
