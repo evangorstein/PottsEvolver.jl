@@ -213,3 +213,13 @@ function accessible_codons(codon::Codon, b::Integer)
         map(codon_alphabet, Cs[1]), map(aa_alphabet, Cs[2])
     end
 end
+
+
+#===========================================================================#
+########################## Amino acid degeneracies ##########################
+#===========================================================================#
+
+const _aa_degeneracy = Dict{IntType, Float32}(
+    a => log(length(reverse_code(a))) for a in 1:length(aa_alphabet)
+)
+aa_degeneracy(a::Integer) = get(_aa_degeneracy, a, -Inf)

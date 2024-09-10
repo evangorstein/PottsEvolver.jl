@@ -119,11 +119,19 @@ end
 ##################### Numerical sequence #####################
 #============================================================#
 
-mutable struct NumSequence{T<:Integer} <: AbstractSequence
+@kwdef mutable struct NumSequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
+    q::T = maximum(seq)
+    function NumSequence(seq::AbstractVector{T}, q) where T
+        @assert all(<=(q), seq) "All entries in `seq` must be smaller than $q. Instead $seq"
+        return new{T}(seq, q)
+    end
 end
+NumSequence(L::Integer, q::Integer; T = IntType) = NumSequence(rand(T(1):T(q), L), T(q))
 
-Base.copy(x::NumSequence{T}) where T = NumSequence{T}(copy(x.seq))
+
+
+Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
 
 """
     NumSequence(L, q; T)
@@ -131,7 +139,6 @@ Base.copy(x::NumSequence{T}) where T = NumSequence{T}(copy(x.seq))
 Construct a random sequence of integers of length `L` using integers `1:q`.
 The integer type can be set using `T`.
 """
-NumSequence(L::Int, q::Int; T = IntType) = NumSequence(rand(T(1):T(q), L))
 
 #===========================================================================#
 ########################## Converting to Alignment ##########################

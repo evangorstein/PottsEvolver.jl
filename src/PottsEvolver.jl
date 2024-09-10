@@ -1,6 +1,7 @@
 module PottsEvolver
 
 using BioSequenceMappings
+using ProgressMeter
 using Random
 using StatsBase
 using TreeTools

@@ -45,7 +45,7 @@ end
 """
     mcmc_sample(
         g::PottsGraph, M::Integer, p::SamplingParameters;
-        init = CodonSequence(size(g).L; source=:aa), # random amino acid sequence
+        init = :random,
         verbose=false
         rng = Random.GLOBAL_RNG,
     )
@@ -55,51 +55,66 @@ Sample `g` for `M` steps starting from `init`.
 Return a vector of sequences with the type of `init`, and a vector with the corresponding
     number of steps.
 
+*Note*: this function is not very efficient if `M` is small.
+
 Sampling details are determined by `parameters`, see `?SamplingParameters`.
 Whether to use the genetic code is determined by the type of the `init` sequence:
 - it is used if `init::CodonSequence`
-- it is not if `init::AASequence`
+- it is not if `init::AASequence` or `init::NumSequence`
 
-Second form: `kwargs` are passed to `SamplingParameters`.
+If the `init=:random` argument is used, the initial sequence will be
+- a random `CodonSequence` if `size(g).q == 21`, by a call to `CodonSequence(sequence_length)`
+- a `NumSequence` otherwise
+
+Second form: `Teq` and `kwargs` are passed to `SamplingParameters`.
 """
 function mcmc_sample end
 
 function mcmc_sample(
     g::PottsGraph, M::Integer, p::SamplingParameters;
-    init = CodonSequence(size(g).L; source=:aa), # random amino acid sequence
+    init = :random,
     rng = Random.GLOBAL_RNG,
     verbose=false,
 )
-    verbose && println("""
+    verbose && @info """
         Sampling $M sequences using the following settings:
         - `Teq` = $(p.Teq)
         - Step style = $(p.step_type)
         - Branch length style = $(p.branch_length_type)
-    """)
+    """
 
     L, q = size(g)
-    conf = copy(init)
+
+    # initial sequence and vector for return value
+    s0 = (init == :random) ? random_init_sequence(g, nothing) : init
+    @info s0
+    conf = copy(s0)
     S = similar([conf], M) # the sample
     tvals = Vector{Int}(undef, M) # the time values
 
     # Holder if gibbs steps are used
     # the size of the holder depends on the symbols of the sequence: amino acids or codons
-    gibbs_holder = get_gibbs_holder(init)
+    gibbs_holder = get_gibbs_holder(s0)
 
     # Burnin
     verbose && println("Initializing with $(p.burnin) burnin iterations... ")
-    for _ in 1:p.burnin
-        mcmc_step!(conf, g, p; rng, gibbs_holder)
-    end
+    mcmc_steps!(conf, g, p.burnin, p; rng, gibbs_holder)
     S[1] = copy(conf)
     tvals[1] = p.burnin
+
     # Sampling
+    progress_meter = Progress(M-1; barglyphs = BarGlyphs("[=> ]"), desc="Sampling: ", dt=.1)
     for m in 2:M
-        for t in 1:p.Teq
-            mcmc_step!(conf, g, p; rng, gibbs_holder)
-        end
+        _, proposed, accepted = mcmc_steps!(conf, g, p.Teq, p; rng, gibbs_holder, verbose)
+        @debug """
+            $proposed proposed steps and $accepted accepted. Ratio $(accepted / proposed)
+            """
         S[m] = copy(conf)
         tvals[m] = tvals[m-1] + p.Teq
+        next!(
+            progress_meter;
+            showvalues = [("steps", m+1), ("total", M)],
+        )
     end
 
     return S, tvals
@@ -107,27 +122,32 @@ end
 
 function mcmc_sample(
     g::PottsGraph, M::Integer;
-    init = CodonSequence(size(g).L; source=:aa), # random amino acid sequence
+    init = :random, # random amino acid sequence
     rng = Random.GLOBAL_RNG,
-    verbose=false,
+    verbose = false,
     Teq = size(g).L,
     kwargs...
 )
     return mcmc_sample(g, M, SamplingParameters(; Teq, kwargs...); init, rng, verbose)
 end
-#===================================================#
-################## Codon sequences ##################
-#===================================================#
 
 """
-    mcmc_step!(s, g, p::SamplingParameters; kwargs...)
+    mcmc_steps!(
+        s::AbstractSequence, g, num_steps, p::SamplingParameters;
+        gibbs_holder, kwargs...
+    )
 
-Determine the step to perform using `p`, then execute it.
+Perform `num_steps` MCMC steps starting from sequence `s` and using graph `g`.
+The step type (`:gibbs`, `:metropolis`) and the interpretation of `num_steps`
+    (`:accepted`, `:proposed`) is set using `p` (see `?SamplingParameters`).
+Modifies the input sequence `s` and returns it.
 """
-function mcmc_step!(
-    s::AbstractSequence, g::PottsGraph, p::SamplingParameters;
-    rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(s),
+function mcmc_steps!(
+    s::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
+    rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(s), verbose=false,
 )
+    @debug "Performing $num_steps ($(p.branch_length_type)) steps of type $(p.step_type)"
+
     step_func! = if p.step_type == :gibbs
         gibbs_step!
     elseif p.step_type == :metropolis
@@ -136,21 +156,29 @@ function mcmc_step!(
         error("Unknown `step_type` $(p.step_type)")
     end
 
+    proposed = 0
+    accepted = 0
     if p.branch_length_type == :proposed
-        step_func!(s, g, p; rng, gibbs_holder)
-    else
-        max_tries = p.Teq * 10
-        k = 0
-        accepted = false
-        while !accepted && k < max_tries
-            accepted = step_func!(s, g, p; rng, gibbs_holder)[end]
-            k += 1
+        for _ in 1:num_steps
+            step_func!(s, g, p; rng, gibbs_holder)
+            proposed += 1
+            accepted += 1
         end
-        k >= max_tries && @warn "$max_tries steps attempted without acceptance. Giving up."
+    else
+        min_acceptance_rate = 0.01
+        max_tries = num_steps / min_acceptance_rate
+        while accepted < num_steps && proposed < max_tries
+            step_func!(s, g, p; rng, gibbs_holder)[end] && (accepted += 1)
+            proposed += 1
+        end
+        proposed >= max_tries && @warn """
+            $max_tries steps attempted with only $accepted acceptances. Giving up.
+            """
     end
 
-    return s
+    return s, proposed, accepted
 end
+
 
 #===============================================================#
 ###################### CodonSequence steps ######################
@@ -184,8 +212,10 @@ function aa_gibbs_step!(
         if aanew == aaref
             p[a] = 0. # energy for now
         else
-            # ΔE is _minus_ the energy --> softmax(ΔE) is the Boltzmann distribution
-            ΔE = g.h[aanew,i] - g.h[aaref,i]
+            # ΔE is minus the energy --> softmax(ΔE) is the Boltzmann distribution
+            # ~ high ΔE is more probable
+            ΔE = - aa_degeneracy(aanew) + aa_degeneracy(aaref) # log-degeneracy of gen code
+            ΔE += g.h[aanew,i] - g.h[aaref,i]
             for j in 1:length(s)
                 if j != i
                     ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
@@ -210,6 +240,42 @@ function gap_gibbs_step!(s::CodonSequence, g::PottsGraph; rng = Random.GLOBAL_RN
     error("Not implemented")
     return false
 end
+
+#===================================================#
+################## Non-codon steps ##################
+#===================================================#
+
+function gibbs_step!(
+    s::AbstractSequence, g::PottsGraph, p::SamplingParameters;
+    rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(S)
+)
+    p = gibbs_holder
+    q = length(gibbs_holder)
+
+    i = rand(1:length(s))
+    a_ref = s[i]
+    for a in 1:q
+        if a == a_ref
+            p[a] = 0.
+        else
+            ΔE = g.h[a,i] - g.h[a_ref,i]
+            for j in 1:length(s)
+                if j != i
+                    ΔE += g.J[a, s[j], i, j] - g.J[a_ref, s[j], i, j]
+                end
+            end
+            p[a] = g.β*ΔE
+        end
+    end
+
+    softmax!(p)
+    @debug "Gibbs conditional probability" p
+    c = wsample(p)
+    s[i] = wsample(p)
+    change = (a_ref != s[i])
+    return i, s[i], change
+end
+
 
 #=====================#
 ######## Utils ########
@@ -241,6 +307,7 @@ end
 
 get_gibbs_holder(::CodonSequence) = zeros(Float64, 4)
 get_gibbs_holder(::AASequence) = zeros(Float64, 21)
+get_gibbs_holder(s::NumSequence) = zeros(Float64, s.q)
 
 function softmax!(X)
     # thanks chatGPT!
@@ -256,4 +323,17 @@ function softmax!(X)
         X[i] /= Z
     end
     return X
+end
+
+"""
+    random_init_sequence(g::PottsGraph)
+
+Construct a random sequence of the type:
+- `CodonSequence` if `q == 21` (call to `CodonSequence(sequence_length)`)
+- `NumSequence` otherwise
+"""
+function random_init_sequence(g::PottsGraph, p)
+    # p not used, might use it in the future so I'm leaving it here
+    L, q = size(g)
+    return q == 21 ? CodonSequence(L) : NumSequence(L, q)
 end

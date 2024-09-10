@@ -11,5 +11,5 @@ end
     g = PottsGraph(L, q; init = :rand)
     S, _ = mcmc_sample(g, M; branch_length_type = :accepted, Teq=1)
     # the difference between two samples should always be exactly one.
-    @test unique(map(i -> hamming(S[i-1], S[i]), 2:M)) == 1
+    @test map(i -> hamming(S[i-1], S[i]; normalize=false), 2:M) |> unique |> first == 1
 end
