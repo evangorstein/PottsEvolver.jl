@@ -28,7 +28,7 @@ burnin::Int = 5*Teq
     branch_length_type::Symbol = :accepted
     Teq::Int
     burnin::Int = 5*Teq
-    fraction_gap_step = 0.9
+    fraction_gap_step::Float64 = 0.9
     function SamplingParameters(step_type, branch_length_type, Teq, burnin, fraction_gap_step)
         @assert branch_length_type in VALID_BRANCH_LENGTH_TYPES """
                 `branch_length_type` should be in $VALID_BRANCH_LENGTH_TYPES.
@@ -140,7 +140,10 @@ function mcmc_sample(
     Teq = size(g).L,
     kwargs...
 )
-    return mcmc_sample(g, M, SamplingParameters(; Teq, kwargs...); init, rng, verbose)
+    return mcmc_sample(
+        g, M, SamplingParameters(; Teq, kwargs...);
+        init, rng, verbose, progress_meter
+    )
 end
 
 """
@@ -158,7 +161,6 @@ function mcmc_steps!(
     s::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
     rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(s), verbose=false,
 )
-    @debug "Performing $num_steps ($(p.branch_length_type)) steps of type $(p.step_type)"
 
     step_func! = if p.step_type == :gibbs
         gibbs_step!
@@ -172,7 +174,7 @@ function mcmc_steps!(
     performed = 0
     if p.branch_length_type == :proposed
         for _ in 1:num_steps
-            step_func!(s, g, p; rng, gibbs_holder)
+            step_func!(s, g, p, gibbs_holder; rng)
             proposed += 1
             performed += 1
         end
@@ -180,7 +182,7 @@ function mcmc_steps!(
         min_acceptance_rate = 0.01
         max_tries = num_steps / min_acceptance_rate
         while performed < num_steps && proposed < max_tries
-            step_result = step_func!(s, g, p; rng, gibbs_holder)
+            step_result = step_func!(s, g, p, gibbs_holder; rng)
             if p.branch_length_type == :accepted && step_result.accepted
                 performed += 1
             elseif p.branch_length_type == :changed && step_results.changed
@@ -202,6 +204,9 @@ the return value should be a named tuple of the form
 `(i, new_state, accepted, changed)`, plus extra info if needed
 `accepted` says whether the step was accepted (always true for gibbs)
 `change` is specific to codon sequences, and says whether the amino acid state was changed.
+
+the input arguments should be
+`(sequence, graph, params, holder)` where holder is only really used for gibbs
 =#
 
 
@@ -209,12 +214,14 @@ the return value should be a named tuple of the form
 ###################### CodonSequence steps ######################
 #===============================================================#
 
-function gibbs_step!(s::CodonSequence, g::PottsGraph, params::SamplingParameters; kwargs...)
+function gibbs_step!(
+    s::CodonSequence, g::PottsGraph, params::SamplingParameters, gibbs_holder; kwargs...
+)
     p = params.fraction_gap_step
     return if rand() < p
         gap_metropolis_step!(s, g; kwargs...)
     else
-        aa_gibbs_step!(s, g; kwargs...)
+        aa_gibbs_step!(s, g, gibbs_holder; kwargs...)
     end
 end
 
@@ -228,16 +235,16 @@ end
 Change one coding codon in `s` into another coding codon.
 """
 function aa_gibbs_step!(
-    s::CodonSequence, g::PottsGraph;
-    rng = Random.GLOBAL_RNG, gibbs_holder = zeros(Float64, 4),
+    s::CodonSequence, g::PottsGraph, gibbs_holder;
+    rng = Random.GLOBAL_RNG,
 )
     p = gibbs_holder
-
     # new_codons and new_aas are arrays but should _NOT_ be mutated
     i, b, new_codons, new_aas = pick_aa_mutation(s; rng)
-    @debug "New possible codons / aas" new_codons new_aas
     aaref = s.aaseq[i]
-    for (a, aanew) in enumerate(new_aas)
+
+    # Constructing the gibbs field p
+     for (a, aanew) in enumerate(new_aas)
         if aanew == aaref
             p[a] = 0. # energy for now
         else
@@ -245,23 +252,33 @@ function aa_gibbs_step!(
             # ~ high ΔE is more probable
             ΔE = - aa_degeneracy(aanew) + aa_degeneracy(aaref) # log-degeneracy of gen code
             ΔE += g.h[aanew,i] - g.h[aaref,i]
-            for j in Iterators.filter(!=(i), 1:length(s))
-                ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
+            for j in 1:length(s)
+                if j != i
+                    ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
+                end
             end
             p[a] = g.β*ΔE
         end
     end
+
+    # Sampling from p
     if length(new_aas) < length(p)
         p[(length(new_aas)+1):end] .= -Inf
     end
     softmax!(p)
-    @debug "Gibbs conditional probability" p
-    c = wsample(p)
+    c = sample_from_weights(p)
     s[i] = new_codons[c]
     s.aaseq[i] = new_aas[c]
     changed = (new_aas[c] != aaref)
     accepted = true
-    return (i=i, b=b, new_state=s[i], accepted=accepted, changed=changed)
+
+    return (i=i, new_state=s[i], accepted=accepted, changed=changed)
+end
+function aa_gibbs_step!(
+    s::CodonSequence, g::PottsGraph{T};
+    gibbs_holder=zeros(T, 4), kwargs...
+) where T
+    return aa_gibbs_step!(s, g, gibbs_holder; kwargs...)
 end
 
 function gap_metropolis_step!(
@@ -275,12 +292,14 @@ function gap_metropolis_step!(
     β = 1/n_aa_codons # aa to gap transition
     return if isgap(codon_ref)
         # Pick any non gap codon and try to mutate to it
-        while (codon_new = rand(codon_alphabet.char_to_index)[2]; !iscoding(codon_new)) end
+        codon_new = rand(coding_codons)
         aa_new = genetic_code(codon_new)
         ΔE = - aa_degeneracy(aa_new) + aa_degeneracy(aa_ref)
         ΔE += g.h[aa_new, i] - g.h[aa_ref, i]
-        for j in Iterators.filter(!=(i), 1:length(s))
-            ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+        for j in 1:length(s)
+            if j != i
+                ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+            end
         end
 
         _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
@@ -292,12 +311,14 @@ function gap_metropolis_step!(
             (i=i, new_state=s[i], accepted=false, changed=false)
         else
             # Metropolis move: replace s[i] with gap codon
-            codon_new = codon_alphabet(gap_codon) # gap_codon defined in codons.jl
+            codon_new = gap_codon_index # gap_codon_index defined in codons.jl
             aa_new = genetic_code(codon_new)
             ΔE = aa_degeneracy(aa_ref) # degeneracy of gap state (aa_new) is 0
             ΔE += g.h[aa_new, i] - g.h[aa_ref, i]
-            for j in Iterators.filter(!=(i), 1:length(s))
-                ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+            for j in 1:length(s)
+                if j != i
+                    ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+                end
             end
 
             _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
@@ -323,8 +344,8 @@ end
 #===================================================#
 
 function gibbs_step!(
-    s::AbstractSequence, g::PottsGraph, p::SamplingParameters;
-    rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(S)
+    s::AbstractSequence, g::PottsGraph, p::SamplingParameters, gibbs_holder;
+    rng = Random.GLOBAL_RNG,
 )
     p = gibbs_holder
     q = length(gibbs_holder)
@@ -346,7 +367,6 @@ function gibbs_step!(
     end
 
     softmax!(p)
-    @debug "Gibbs conditional probability" p
     c = wsample(p)
     s[i] = wsample(p)
     change = (a_ref != s[i])
@@ -372,7 +392,7 @@ function pick_aa_mutation(s::CodonSequence; rng = Random.GLOBAL_RNG)
     @label again
     cnt += 1
     i = rand(1:length(s))
-    b = rand(1:3)
+    b = rand(IntType(1):IntType(3))
     codon = s[i]
     new_codons, new_aas = accessible_codons(codon, b)
     if cnt < max_cnt && (isnothing(new_codons) || isnothing(new_aas))
@@ -382,9 +402,9 @@ function pick_aa_mutation(s::CodonSequence; rng = Random.GLOBAL_RNG)
     end
 end
 
-get_gibbs_holder(::CodonSequence) = zeros(Float64, 4)
-get_gibbs_holder(::AASequence) = zeros(Float64, 21)
-get_gibbs_holder(s::NumSequence) = zeros(Float64, s.q)
+get_gibbs_holder(::CodonSequence, T=FloatType) = zeros(T, 4)
+get_gibbs_holder(::AASequence, T=FloatType) = zeros(T, 21)
+get_gibbs_holder(s::NumSequence, T=FloatType) = zeros(T, s.q)
 
 function softmax!(X)
     # thanks chatGPT!
@@ -400,6 +420,19 @@ function softmax!(X)
         X[i] /= Z
     end
     return X
+end
+
+function sample_from_weights(W)
+    # !!! Assumes W is normalized !!!
+    x = rand()
+    z = 0.
+    for (i, w) in enumerate(W)
+        z += w
+        if x < z
+            return i
+        end
+    end
+    return length(W)
 end
 
 """

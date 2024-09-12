@@ -46,7 +46,6 @@ const codon_alphabet = let
     pushfirst!(C, Codon('-', '-', '-'))
     Alphabet(C, IntType)
 end
-const gap_codon = codon_alphabet(1) # should match the `pushfirst!` two lines above
 
 #==========================================#
 ############### Genetic code ###############
@@ -147,7 +146,6 @@ end
 # Only all gaps or all nt codons are valid
 # Anything else means a frameshift and I do not deal with that here
 isgap(c::Codon) = all(==('-'), bases(c))
-isgap(i::Integer) = isgap(codon_alphabet(i))
 function isvalid(c::Codon)
     return if isgap(c)
         true
@@ -158,9 +156,17 @@ function isvalid(c::Codon)
     end
 end
 isstop(c::Codon) = genetic_code(c) == '*'
-isstop(i::Integer) = isstop(codon_alphabet(i))
-iscoding(c::Integer) = !isgap(c) && !isstop(c)
 iscoding(c::Codon) = !isgap(c) && !isstop(c) && isvalid(c)
+
+# pre-computed for faster calculations on integers
+
+const gap_codon_index = findfirst(isgap, symbols(codon_alphabet)) |> IntType
+const stop_codon_indices = IntType.(findall(isstop, symbols(codon_alphabet)))
+isgap(i::Integer) = (i == gap_codon_index)
+isstop(i::Integer) = in(i, stop_codon_indices)
+
+iscoding(c::Integer) = !isgap(c) && !isstop(c)
+const coding_codons = IntType.(findall(iscoding, 1:length(codon_alphabet)))
 
 function to_string(s::AbstractVector{<:Integer}, alphabet::Alphabet{Codon, <:Integer})
     return prod(x -> prod(bases(alphabet(x))), s)
@@ -223,7 +229,7 @@ end
 ########################## Amino acid degeneracies ##########################
 #===========================================================================#
 
-const _aa_degeneracy = Dict{IntType, Float32}(
+const _aa_degeneracy = Dict{IntType, FloatType}(
     a => log(length(reverse_code(a))) for a in 1:length(aa_alphabet)
 )
 aa_degeneracy(a::Integer) = get(_aa_degeneracy, a, -Inf)
