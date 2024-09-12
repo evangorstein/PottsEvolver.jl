@@ -3,8 +3,6 @@
 #==================================================================#
 
 const nucleotides = ['A', 'C', 'G', 'T']
-
-const IntType = UInt8
 """
     aa_alphabet
     nt_alphabet
@@ -48,6 +46,7 @@ const codon_alphabet = let
     pushfirst!(C, Codon('-', '-', '-'))
     Alphabet(C, IntType)
 end
+const gap_codon = codon_alphabet(1) # should match the `pushfirst!` two lines above
 
 #==========================================#
 ############### Genetic code ###############
@@ -160,10 +159,15 @@ function isvalid(c::Codon)
 end
 isstop(c::Codon) = genetic_code(c) == '*'
 isstop(i::Integer) = isstop(codon_alphabet(i))
+iscoding(c::Integer) = !isgap(c) && !isstop(c)
+iscoding(c::Codon) = !isgap(c) && !isstop(c) && isvalid(c)
 
 function to_string(s::AbstractVector{<:Integer}, alphabet::Alphabet{Codon, <:Integer})
     return prod(x -> prod(bases(alphabet(x))), s)
 end
+
+# Number of non-stop / non-gaps codons
+const n_aa_codons = count(c -> !isgap(c) && !isstop(c), symbols(codon_alphabet))
 
 #===========================================================================#
 ########################## Codon accessibility map ##########################

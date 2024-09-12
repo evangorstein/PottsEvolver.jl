@@ -1,6 +1,5 @@
 abstract type AbstractSequence end
 
-Base.length(s::AbstractSequence) = length(s.seq)
 Base.getindex(s::AbstractSequence, i) = getindex(s.seq, i)
 Base.setindex!(s::AbstractSequence, x, i) = setindex!(s.seq, x, i)
 function Base.:(==)(x::T, y::T) where T <: AbstractSequence
@@ -10,13 +9,23 @@ function Base.hash(x::AbstractSequence, h::UInt)
     return hash(x.seq, h)
 end
 
+Base.iterate(s::AbstractSequence) = iterate(s.seq)
+Base.iterate(s::AbstractSequence, state) = iterate(s.seq, state)
+Base.length(s::AbstractSequence) = length(s.seq)
+Base.eltype(s::AbstractSequence) = eltype(s.seq)
+
 # the two functions below: used in Alignment
 sequence(x::AbstractSequence; kwargs...) = x.seq
 _sequence_alphabet(::Type{<:AbstractSequence}; kwargs...) = nothing
 
+
 #=
-Other methods that a subtype should implement
+Methods that a subtype should implement
+- equality and hash
+- indexing
 - copy
+- sequence
+- _sequence_alphabet
 =#
 
 #====================================#
@@ -174,37 +183,6 @@ function Alignment(
 
     return Alignment(data, alphabet; names)
 end
-
-
-
-
-
-# function Alignment(
-#     S::AbstractVector{CodonSequence};
-#     as_aa=true, as_codons=false, alphabet = nothing, names = nothing,
-# )
-#     # Checks
-#     if !xor(as_aa, as_codons)
-#         error("Expected either `as_aa` or `as_codons`. Instead $as_aa $as_codons")
-#     end
-#     if !allequal(Iterators.map(length, S))
-#         error("Sequences do not have the same length")
-#     end
-#     if !isnothing(names) && length(names) != length(S)
-#         error("Got $(length(names)) but $(length(S)) sequences.")
-#     end
-
-#     if isnothing(alphabet)
-#         alphabet = as_aa ? aa_alphabet : codon_alphabet
-#     end
-
-#     data = Matrix{IntType}(undef, length(first(S)), length(S))
-#     for (m, s) in enumerate(S)
-#         data[:, m] .= as_aa ? s.aaseq : s.seq
-#     end
-
-#     return Alignment(data, alphabet; names)
-# end
 
 
 #==================#

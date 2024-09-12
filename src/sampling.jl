@@ -28,7 +28,8 @@ burnin::Int = 5*Teq
     branch_length_type::Symbol = :accepted
     Teq::Int
     burnin::Int = 5*Teq
-    function SamplingParameters(step_type, branch_length_type, Teq, burnin)
+    fraction_gap_step = 0.9
+    function SamplingParameters(step_type, branch_length_type, Teq, burnin, fraction_gap_step)
         @assert branch_length_type in VALID_BRANCH_LENGTH_TYPES """
                 `branch_length_type` should be in $VALID_BRANCH_LENGTH_TYPES.
                 Instead $(branch_length_type).
@@ -37,7 +38,7 @@ burnin::Int = 5*Teq
                 `step_type` should be in $VALID_STEP_TYPES.
                 Instead $(step_type).
             """
-        return new(step_type, branch_length_type, Teq, burnin)
+        return new(step_type, branch_length_type, Teq, burnin, fraction_gap_step)
     end
 end
 
@@ -75,7 +76,9 @@ function mcmc_sample(
     init = :random,
     rng = Random.GLOBAL_RNG,
     verbose=false,
+    progress_meter = true,
 )
+    @assert p.Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(p.Teq)"
     verbose && @info """
         Sampling $M sequences using the following settings:
         - `Teq` = $(p.Teq)
@@ -87,7 +90,6 @@ function mcmc_sample(
 
     # initial sequence and vector for return value
     s0 = (init == :random) ? random_init_sequence(g, nothing) : init
-    @info s0
     conf = copy(s0)
     S = similar([conf], M) # the sample
     tvals = Vector{Int}(undef, M) # the time values
@@ -98,26 +100,35 @@ function mcmc_sample(
 
     # Burnin
     verbose && println("Initializing with $(p.burnin) burnin iterations... ")
-    mcmc_steps!(conf, g, p.burnin, p; rng, gibbs_holder)
+    p.burnin > 0 && mcmc_steps!(conf, g, p.burnin, p; rng, gibbs_holder)
     S[1] = copy(conf)
     tvals[1] = p.burnin
 
     # Sampling
-    progress_meter = Progress(M-1; barglyphs = BarGlyphs("[=> ]"), desc="Sampling: ", dt=.1)
-    for m in 2:M
-        _, proposed, accepted = mcmc_steps!(conf, g, p.Teq, p; rng, gibbs_holder, verbose)
-        @debug """
-            $proposed proposed steps and $accepted accepted. Ratio $(accepted / proposed)
-            """
+    log_info = []
+    progress = Progress(
+        M-1;
+        barglyphs = BarGlyphs("[=> ]"),
+        desc="Sampling: ",
+        showspeed=true,
+        enabled = progress_meter,
+    )
+    time = @elapsed for m in 2:M
+        # doing p.Teq steps on the current configuration
+        _, proposed, performed = mcmc_steps!(conf, g, p.Teq, p; rng, gibbs_holder, verbose)
+        # storing the result in S
         S[m] = copy(conf)
         tvals[m] = tvals[m-1] + p.Teq
+        # misc.
+        push!(log_info, (proposed=proposed, performed=performed, ratio=performed/proposed))
         next!(
-            progress_meter;
+            progress;
             showvalues = [("steps", m+1), ("total", M)],
         )
     end
+    verbose && @info "Sampling done in $time seconds"
 
-    return S, tvals
+    return Alignment(S; alphabet=g.alphabet, names = tvals), log_info
 end
 
 function mcmc_sample(
@@ -125,6 +136,7 @@ function mcmc_sample(
     init = :random, # random amino acid sequence
     rng = Random.GLOBAL_RNG,
     verbose = false,
+    progress_meter = true,
     Teq = size(g).L,
     kwargs...
 )
@@ -157,40 +169,57 @@ function mcmc_steps!(
     end
 
     proposed = 0
-    accepted = 0
+    performed = 0
     if p.branch_length_type == :proposed
         for _ in 1:num_steps
             step_func!(s, g, p; rng, gibbs_holder)
             proposed += 1
-            accepted += 1
+            performed += 1
         end
     else
         min_acceptance_rate = 0.01
         max_tries = num_steps / min_acceptance_rate
-        while accepted < num_steps && proposed < max_tries
-            step_func!(s, g, p; rng, gibbs_holder)[end] && (accepted += 1)
+        while performed < num_steps && proposed < max_tries
+            step_result = step_func!(s, g, p; rng, gibbs_holder)
+            if p.branch_length_type == :accepted && step_result.accepted
+                performed += 1
+            elseif p.branch_length_type == :changed && step_results.changed
+                performed += 1
+            end
             proposed += 1
         end
         proposed >= max_tries && @warn """
-            $max_tries steps attempted with only $accepted acceptances. Giving up.
+            $max_tries steps attempted with only $performed performed. Giving up.
             """
     end
 
-    return s, proposed, accepted
+    return s, proposed, performed
 end
+
+#=
+MCMC step functions
+the return value should be a named tuple of the form
+`(i, new_state, accepted, changed)`, plus extra info if needed
+`accepted` says whether the step was accepted (always true for gibbs)
+`change` is specific to codon sequences, and says whether the amino acid state was changed.
+=#
 
 
 #===============================================================#
 ###################### CodonSequence steps ######################
 #===============================================================#
 
-function gibbs_step!(s::CodonSequence, g::PottsGraph, p::SamplingParameters; kwargs...)
-    # need to implement gap step here, with some parameter coming from p probably
-    return aa_gibbs_step!(s, g; kwargs...)
+function gibbs_step!(s::CodonSequence, g::PottsGraph, params::SamplingParameters; kwargs...)
+    p = params.fraction_gap_step
+    return if rand() < p
+        gap_metropolis_step!(s, g; kwargs...)
+    else
+        aa_gibbs_step!(s, g; kwargs...)
+    end
 end
 
 function metropolis_step!(s::CodonSequence, g::PottsGraph, p::SamplingParameters; kwargs...)
-    error("Not implemented yet")
+    error("Not implemented")
 end
 
 """
@@ -216,10 +245,8 @@ function aa_gibbs_step!(
             # ~ high ΔE is more probable
             ΔE = - aa_degeneracy(aanew) + aa_degeneracy(aaref) # log-degeneracy of gen code
             ΔE += g.h[aanew,i] - g.h[aaref,i]
-            for j in 1:length(s)
-                if j != i
-                    ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
-                end
+            for j in Iterators.filter(!=(i), 1:length(s))
+                ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
             end
             p[a] = g.β*ΔE
         end
@@ -232,13 +259,63 @@ function aa_gibbs_step!(
     c = wsample(p)
     s[i] = new_codons[c]
     s.aaseq[i] = new_aas[c]
-    change = (new_aas[c] != aaref)
-    return i, b, s[i], change
+    changed = (new_aas[c] != aaref)
+    accepted = true
+    return (i=i, b=b, new_state=s[i], accepted=accepted, changed=changed)
 end
 
-function gap_gibbs_step!(s::CodonSequence, g::PottsGraph; rng = Random.GLOBAL_RNG)
-    error("Not implemented")
-    return false
+function gap_metropolis_step!(
+    s::CodonSequence, g::PottsGraph;
+    rng = Random.GLOBAL_RNG, kwargs...,
+)
+    i = rand(1:length(s))
+    codon_ref = s.seq[i]
+    aa_ref = s.aaseq[i]
+    # di Bari et. al.
+    β = 1/n_aa_codons # aa to gap transition
+    return if isgap(codon_ref)
+        # Pick any non gap codon and try to mutate to it
+        while (codon_new = rand(codon_alphabet.char_to_index)[2]; !iscoding(codon_new)) end
+        aa_new = genetic_code(codon_new)
+        ΔE = - aa_degeneracy(aa_new) + aa_degeneracy(aa_ref)
+        ΔE += g.h[aa_new, i] - g.h[aa_ref, i]
+        for j in Iterators.filter(!=(i), 1:length(s))
+            ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+        end
+
+        _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
+    else
+        # Try to replace s[i] by the gap codon
+        if rand() < 1-β
+            # with probability 1-β do nothing
+            # return value below should match _metropolis_step!(::CodonSequence, ...)
+            (i=i, new_state=s[i], accepted=false, changed=false)
+        else
+            # Metropolis move: replace s[i] with gap codon
+            codon_new = codon_alphabet(gap_codon) # gap_codon defined in codons.jl
+            aa_new = genetic_code(codon_new)
+            ΔE = aa_degeneracy(aa_ref) # degeneracy of gap state (aa_new) is 0
+            ΔE += g.h[aa_new, i] - g.h[aa_ref, i]
+            for j in Iterators.filter(!=(i), 1:length(s))
+                ΔE += g.J[aa_new, s.aaseq[j], i, j] - g.J[aa_ref, s.aaseq[j], i, j]
+            end
+
+            _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
+        end
+    end
+end
+
+function _metropolis_step!(s::CodonSequence, ΔE, i, codon_new, aa_new, aa_ref)
+    # Check for acceptance based on ΔE
+    # if accepted, change s.seq and s.aaseq using codon_new/aa_new
+    # otherwise, do nothing
+    return if ΔE >= 0 || rand() < exp(ΔE)
+        s[i] = codon_new
+        s.aaseq[i] = aa_new
+        (i=i, new_state=s[i], accepted=true, changed=aa_new==aa_ref)
+    else
+        (i=i, new_state=s[i], accepted=false, changed=false)
+    end
 end
 
 #===================================================#

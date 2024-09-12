@@ -6,7 +6,7 @@
 - Inverse temperature `β`
 - `alphabet`
 """
-@kwdef mutable struct PottsGraph{T<:Float32}
+@kwdef mutable struct PottsGraph{T<:AbstractFloat}
     J::Array{T,4}
     h::Array{T,2}
     β::T = 1.
@@ -26,9 +26,9 @@
 end
 
 """
-    PottsGraph(L, q[, T=Float32]; init = :null)
+    PottsGraph(L, q[, T]; init = :null)
 
-Return a `PottsGraph` of the required size.
+Return a `PottsGraph{T}` of the required size.
 - `init == :null`: parameters are intialized to zero.
 - `init == :rand`: parameters are randomly sampled using `Jrand` and `hrand` keywords.
 
@@ -42,7 +42,7 @@ The output matrix is made symetric with zeroes on the diagonal blocks.
 
 """
 function PottsGraph(
-    L, q, T=Float32;
+    L, q, T=FloatType;
     init = :null, Jrand = N -> 1/L*randn(N,N), hrand = N -> 1/sqrt(L)*randn(N),
 )
     alphabet = BioSequenceMappings.default_alphabet(q)
@@ -144,4 +144,32 @@ end
 function set_gauge_lattice_gas!(g)
     error("Not implemented yet")
     return g
+end
+
+#==================#
+####### Misc #######
+#==================#
+
+function energy(s::AbstractVector{<:Integer}, g::PottsGraph)
+    (; L, q) = size(g)
+    E = 0.
+    for i in 1:L
+        E += g.h[s[i], i]
+        for j in (i+1):L
+            E += g.J[s[i], s[j], i, j]
+        end
+    end
+    return E
+end
+energy(s::AbstractSequence, g) = energy(sequence(s), g)
+energy(s::CodonSequence, g) = energy(s.aaseq, g)
+
+
+function Base.show(io::IO, g::PottsGraph{T}) where T
+    (; L, q) = size(g)
+    print(io, "PottsGraph{T} (L=$L, q=$q)")
+end
+function Base.show(io::IO, x::MIME"text/plain", g::PottsGraph)
+    (; L, q) = size(g)
+    print(io, "PottsGraph{T}: dimensions (L=$L, q=$q) -- β=$(g.β) -- $(g.alphabet)")
 end

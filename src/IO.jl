@@ -9,7 +9,7 @@
 
 Read `PottsGraph` object from a file.
 """
-read_graph(file::AbstractString) = read_graph_extended(file)
+read_graph(file::AbstractString, T=FloatType) = read_graph_extended(file, T)
 """
     read_potts_graph
 
@@ -17,16 +17,20 @@ Alias for `read_graph`.
 """
 read_potts_graph = read_graph
 
-function read_graph_extended(file)
+function read_graph_extended(file, T=FloatType)
     ## Go through file twice: first to get L and q, the second to store parameters
     q = 0
     L = 0
     min_idx = Inf
     index_style = 1
-    for line in eachline(file)
-        @assert is_valid_line(line) "Format problem with line:\n $line \n--> Expected `J i j a b` or `h i a`."
+    for (n, line) in enumerate(eachline(file))
+        @assert is_valid_line(line) """
+            Format problem with line $n in $file
+            Expected format `J i j a b` or `h i a`.
+            Instead $line
+            """
         if !isempty(line) && line[1] == 'h'
-            i, a, val = parse_field_line(line)
+            i, a, val = parse_field_line(line, T)
             if i > L
                 L = i
             end
@@ -48,12 +52,12 @@ function read_graph_extended(file)
     g = PottsGraph(L, q)
     for line in eachline(file)
         if line[1] == 'J'
-            i, j, a, b, val = parse_coupling_line(line)
+            i, j, a, b, val = parse_coupling_line(line, T)
             index_style == 0 && (i += 1; j += 1; a += 1; b += 1)
             g.J[a,b,i,j] = val
             g.J[b,a,j,i] = val
         elseif line[1] == 'h'
-            i, a, val = parse_field_line(line)
+            i, a, val = parse_field_line(line, T)
             index_style == 0 && (i += 1; a += 1)
             g.h[a,i] = val
         end
@@ -70,20 +74,20 @@ function is_valid_line(line)
         return true
     end
 end
-function parse_field_line(line)
+function parse_field_line(line, T)
     s = split(line, " ")
     i = parse(Int, s[2])
     a = parse(Int, s[3])
-    val = parse(Float64, s[4])
+    val = parse(T, s[4])
     return i, a, val
 end
-function parse_coupling_line(line)
+function parse_coupling_line(line, T)
     s = split(line, " ")
     i = parse(Int, s[2])
     j = parse(Int, s[3])
     a = parse(Int, s[4])
     b = parse(Int, s[5])
-    val = parse(Float64, s[6])
+    val = parse(T, s[6])
     return i, j, a, b, val
 end
 
