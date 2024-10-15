@@ -10,15 +10,15 @@
     J::Array{T,4}
     h::Array{T,2}
     β::T = 1.
-    alphabet::Alphabet{Char, <:Integer} = aa_alphabet
-    function PottsGraph{T}(J, h, β, alphabet) where T
+    alphabet::Union{Nothing, Alphabet{Char, <:Integer}} = aa_alphabet
+    function PottsGraph(J::Array{T,4}, h::Array{T,2}, β, alphabet) where T
         @assert size(h, 1) == size(J, 1) == size(J, 2) """
             Inconsistent sizes for `J` and `h`: $(size(J)) - $(size(h))
             """
         @assert size(h, 2) == size(J, 3) == size(J, 4) """
             Inconsistent sizes for `J` and `h`: $(size(J)) - $(size(h))
             """
-        @assert size(h, 1) == length(alphabet) """
+        @assert isnothing(alphabet) || size(h, 1) == length(alphabet) """
             Inconsistent alphabet size: $(length(alphabet)) - h: $(size(h))
             """
         return new{T}(J, h, β, alphabet)
@@ -45,12 +45,18 @@ function PottsGraph(
     L, q, T=FloatType;
     init = :null, Jrand = N -> 1/L*randn(N,N), hrand = N -> 1/sqrt(L)*randn(N),
 )
-    alphabet = BioSequenceMappings.default_alphabet(q)
+    # If a default alphabet (binary, nucleotides, etc...) matches `q`, use it
+    # Otherwise, do not use an alphabet
+    alphabet = let
+        A = convert(IntType, BioSequenceMappings.default_alphabet(q))
+        q == length(A) ? A : nothing
+    end
+
     return if init == :null
-        PottsGraph{T}(; J = zeros(T, q, q, L, L), h = zeros(T, q, L), alphabet,)
+        PottsGraph(; J = zeros(T, q, q, L, L), h = zeros(T, q, L), alphabet,)
     elseif init == :rand
         J, h = _random_graph(L, q)
-        PottsGraph{T}(; J, h, alphabet)
+        PottsGraph(; J, h, alphabet)
     end
 end
 
@@ -167,9 +173,9 @@ energy(s::CodonSequence, g) = energy(s.aaseq, g)
 
 function Base.show(io::IO, g::PottsGraph{T}) where T
     (; L, q) = size(g)
-    print(io, "PottsGraph{T} (L=$L, q=$q)")
+    print(io, "PottsGraph{$T} (L=$L, q=$q)")
 end
-function Base.show(io::IO, x::MIME"text/plain", g::PottsGraph)
+function Base.show(io::IO, x::MIME"text/plain", g::PottsGraph{T}) where T
     (; L, q) = size(g)
-    print(io, "PottsGraph{T}: dimensions (L=$L, q=$q) -- β=$(g.β) -- $(g.alphabet)")
+    print(io, "PottsGraph{$T}: dimensions (L=$L, q=$q) -- β=$(g.β) -- $(g.alphabet)")
 end

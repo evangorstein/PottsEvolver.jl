@@ -1,3 +1,5 @@
+using Accessors
+using StatsBase
 using PottsEvolver
 using Test
 

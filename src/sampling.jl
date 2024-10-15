@@ -1,5 +1,5 @@
 const VALID_STEP_TYPES = [:gibbs, :metropolis]
-const VALID_BRANCH_LENGTH_TYPES = [:accepted, :proposed]
+const VALID_STEP_MEANINGS = [:proposed, :accepted, :changed]
 
 """
     mutable struct SamplingParameters
@@ -7,102 +7,106 @@ const VALID_BRANCH_LENGTH_TYPES = [:accepted, :proposed]
 Construct using keyword arguments:
 ```
 step_type::Symbol = :gibbs
-branch_length::Symbol = :accepted
+step_meaning::Symbol = :accepted
 Teq::Int
 burnin::Int = 5*Teq
+fraction_gap_step::Float64 = 0.9
 ```
 
 - `Teq` is measured in swaps: attempted (or accepted) change of one sequence position.
 - `burnin`: number of steps starting from the initial sequence before the first `Teq` are
     made.
-- if `branch_length_type` is `:accepted`, only accepted MCMC steps will count towards
-    equilibration. If it is `:proposed`, all steps count.
-    *e.g.*: `Teq = 10`, starting from sequence `s`. If `:accepted` is used, then the next
-    sample is taken after `10` accepted MCMC steps take place. If `:proposed`, `10` calls
-    to the stepping function are enough.
-    **Important**: only steps that lead to amino acid replacements are considered as
-    accepted.
+- `step_meaning` can take three values
+    - `:proposed`: all mcmc steps count towards equilibration
+    - `:accepted`: only accepted steps count (all steps for non-codon Gibbs)
+    - `:changed`: only steps that lead to a change count (Gibbs can resample the same state)
+    *Note*: Gibbs steps for codons are more complicated, since they involve the possibility
+    Metropolis step for gaps, which can be rejected.
 """
 @kwdef mutable struct SamplingParameters
     step_type::Symbol = :gibbs
-    branch_length_type::Symbol = :accepted
+    step_meaning::Symbol = :accepted
     Teq::Int
     burnin::Int = 5*Teq
     fraction_gap_step::Float64 = 0.9
-    function SamplingParameters(step_type, branch_length_type, Teq, burnin, fraction_gap_step)
-        @assert branch_length_type in VALID_BRANCH_LENGTH_TYPES """
-                `branch_length_type` should be in $VALID_BRANCH_LENGTH_TYPES.
-                Instead $(branch_length_type).
+    function SamplingParameters(step_type, step_meaning, Teq, burnin, fraction_gap_step)
+        @assert step_meaning in VALID_STEP_MEANINGS """
+                `step_meaning` should be in $VALID_STEP_MEANINGS.
+                Instead $(step_meaning).
             """
         @assert step_type in VALID_STEP_TYPES """
                 `step_type` should be in $VALID_STEP_TYPES.
                 Instead $(step_type).
             """
-        return new(step_type, branch_length_type, Teq, burnin, fraction_gap_step)
+        return new(step_type, step_meaning, Teq, burnin, fraction_gap_step)
     end
 end
 
 
 """
     mcmc_sample(
-        g::PottsGraph, M::Integer, p::SamplingParameters;
-        init = :random,
-        verbose=false
-        rng = Random.GLOBAL_RNG,
+        g::PottsGraph, M::Integer, s0::AbstractSequence, params::SamplingParameters;
+        rng=Random.GLOBAL_RNG, verbose=0, progress_meter=true, alignment_output=true,
     )
-    mcmc_sample(g, M; init, verbose, rng, Teq = L, kwargs...)
 
-Sample `g` for `M` steps starting from `init`.
-Return a vector of sequences with the type of `init`, and a vector with the corresponding
-    number of steps.
+Sample `g` for `M` steps starting from `s0`, using parameters in `params`.
+Return value: named tuple with fields
+    - `sequences`: alignment (or vector) of sequences
+    - `tvals`: vector with the number of steps at each sample
+    - `info`: information about the run
+    - `params`: parameters of the run.
+
 
 *Note*: this function is not very efficient if `M` is small.
 
 Sampling details are determined by `parameters`, see `?SamplingParameters`.
 Whether to use the genetic code is determined by the type of the `init` sequence:
-- it is used if `init::CodonSequence`
-- it is not if `init::AASequence` or `init::NumSequence`
-
-If the `init=:random` argument is used, the initial sequence will be
-- a random `CodonSequence` if `size(g).q == 21`, by a call to `CodonSequence(sequence_length)`
-- a `NumSequence` otherwise
-
-Second form: `Teq` and `kwargs` are passed to `SamplingParameters`.
+it is used if `init::CodonSequence`, otherwise not.
 """
 function mcmc_sample end
 
 function mcmc_sample(
-    g::PottsGraph, M::Integer, p::SamplingParameters;
-    init = :random,
-    rng = Random.GLOBAL_RNG,
-    verbose=false,
-    progress_meter = true,
+    g::PottsGraph, M::Int, s0::AbstractSequence, params::SamplingParameters;
+    rng=Random.GLOBAL_RNG,
+    verbose=0,
+    progress_meter=true,
+    alignment_output=true,
+    translate_output=false,
 )
-    @assert p.Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(p.Teq)"
-    verbose && @info """
+    if !alignment_output && translate_output
+        error("I have to implement this case")
+    end
+
+    @unpack Teq, burnin = params
+    @assert Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(Teq)"
+    @assert M > 0 "Number of samples `M` must be >0. Instead $M"
+    tmp_check_alphabet_consistency(g, s0)
+    verbose>0 && @info """
         Sampling $M sequences using the following settings:
-        - `Teq` = $(p.Teq)
-        - Step style = $(p.step_type)
-        - Branch length style = $(p.branch_length_type)
+        - Steps between samples = $(Teq)
+        - burnin = $(burnin)
+        - Step style = $(params.step_type)
+        - Branch length style = $(params.step_meaning)
+        - fraction of gap steps (if codon) = $(params.fraction_gap_step)
     """
+    verbose>0 && @info "Initial sequence: $s0"
 
     L, q = size(g)
 
-    # initial sequence and vector for return value
-    s0 = (init == :random) ? random_init_sequence(g, nothing) : init
+    # vector for return value
     conf = copy(s0)
     S = similar([conf], M) # the sample
-    tvals = Vector{Int}(undef, M) # the time values
+    tvals = Vector{Int}(undef, M) # number of steps at each sample
 
     # Holder if gibbs steps are used
     # the size of the holder depends on the symbols of the sequence: amino acids or codons
     gibbs_holder = get_gibbs_holder(s0)
 
     # Burnin
-    verbose && println("Initializing with $(p.burnin) burnin iterations... ")
-    p.burnin > 0 && mcmc_steps!(conf, g, p.burnin, p; rng, gibbs_holder)
+    verbose>0 && println("Initializing with $(burnin) burnin iterations... ")
+    burnin > 0 && mcmc_steps!(conf, g, burnin, params; rng, gibbs_holder)
     S[1] = copy(conf)
-    tvals[1] = p.burnin
+    tvals[1] = burnin
 
     # Sampling
     log_info = []
@@ -112,13 +116,16 @@ function mcmc_sample(
         desc="Sampling: ",
         showspeed=true,
         enabled = progress_meter,
+        dt = 2,
     )
     time = @elapsed for m in 2:M
-        # doing p.Teq steps on the current configuration
-        _, proposed, performed = mcmc_steps!(conf, g, p.Teq, p; rng, gibbs_holder, verbose)
+        # doing Teq steps on the current configuration
+        _, proposed, performed = mcmc_steps!(
+            conf, g, Teq, params; rng, gibbs_holder, verbose
+        )
         # storing the result in S
         S[m] = copy(conf)
-        tvals[m] = tvals[m-1] + p.Teq
+        tvals[m] = tvals[m-1] + Teq
         # misc.
         push!(log_info, (proposed=proposed, performed=performed, ratio=performed/proposed))
         next!(
@@ -126,24 +133,35 @@ function mcmc_sample(
             showvalues = [("steps", m+1), ("total", M)],
         )
     end
-    verbose && @info "Sampling done in $time seconds"
+    verbose>0 && @info "Sampling done in $time seconds"
 
-    return Alignment(S; alphabet=g.alphabet, names = tvals), log_info
-end
-
-function mcmc_sample(
-    g::PottsGraph, M::Integer;
-    init = :random, # random amino acid sequence
-    rng = Random.GLOBAL_RNG,
-    verbose = false,
-    progress_meter = true,
-    Teq = size(g).L,
-    kwargs...
-)
-    return mcmc_sample(
-        g, M, SamplingParameters(; Teq, kwargs...);
-        init, rng, verbose, progress_meter
+    sequences = if alignment_output
+        A = Alignment(S; names = tvals)
+        translate_output ? genetic_code(A) : A
+    else
+        S
+    end
+    return (;
+        sequences,
+        tvals,
+        info = log_info,
+        params = return_params(params, s0),
     )
+end
+"""
+    mcmc_sample(
+        g::PottsGraph, M::Integer, params::SamplingParameters; init=:random_num, kwargs...)
+    )
+
+Secondary form: choose the initial sequence based on `init` and `g`.
+See `PottsEvolver.get_init_sequence` for more information.
+"""
+function mcmc_sample(
+    g::PottsGraph, M::Integer, params::SamplingParameters;
+    init = :random_num, verbose=0, kwargs...
+)
+    s0 = get_init_sequence(init, g; verbose)
+    return mcmc_sample(g, M, s0, params; verbose, kwargs...)
 end
 
 """
@@ -161,7 +179,6 @@ function mcmc_steps!(
     s::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
     rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(s), verbose=false,
 )
-
     step_func! = if p.step_type == :gibbs
         gibbs_step!
     elseif p.step_type == :metropolis
@@ -171,38 +188,38 @@ function mcmc_steps!(
     end
 
     proposed = 0
-    performed = 0
-    if p.branch_length_type == :proposed
+    accepted = 0
+    if p.step_meaning == :proposed
         for _ in 1:num_steps
             step_func!(s, g, p, gibbs_holder; rng)
             proposed += 1
-            performed += 1
+            accepted += 1
         end
     else
-        min_acceptance_rate = 0.01
+        min_acceptance_rate = 0.001
         max_tries = num_steps / min_acceptance_rate
-        while performed < num_steps && proposed < max_tries
+        while accepted < num_steps && proposed < max_tries
             step_result = step_func!(s, g, p, gibbs_holder; rng)
-            if p.branch_length_type == :accepted && step_result.accepted
-                performed += 1
-            elseif p.branch_length_type == :changed && step_results.changed
-                performed += 1
+            if p.step_meaning == :accepted && step_result.accepted
+                accepted += 1
+            elseif p.step_meaning == :changed && step_result.changed
+                accepted += 1
             end
             proposed += 1
         end
         proposed >= max_tries && @warn """
-            $max_tries steps attempted with only $performed performed. Giving up.
+            $max_tries steps attempted with only $accepted accepted. Giving up.
             """
     end
 
-    return s, proposed, performed
+    return s, proposed, accepted
 end
 
 #=
 MCMC step functions
 the return value should be a named tuple of the form
 `(i, new_state, accepted, changed)`, plus extra info if needed
-`accepted` says whether the step was accepted (always true for gibbs)
+`accepted` says whether the step was accepted (always true for non-codon gibbs)
 `change` is specific to codon sequences, and says whether the amino acid state was changed.
 
 the input arguments should be
@@ -290,7 +307,7 @@ function gap_metropolis_step!(
     aa_ref = s.aaseq[i]
     # di Bari et. al.
     β = 1/n_aa_codons # aa to gap transition
-    return if isgap(codon_ref)
+    return if isgap(codon_ref, codon_alphabet)
         # Pick any non gap codon and try to mutate to it
         codon_new = rand(coding_codons)
         aa_new = genetic_code(codon_new)
@@ -369,9 +386,60 @@ function gibbs_step!(
     softmax!(p)
     c = wsample(p)
     s[i] = wsample(p)
-    change = (a_ref != s[i])
-    return i, s[i], change
+    changed = (a_ref != s[i])
+    return (;i, new_state=s[i], accepted=true, changed)
 end
+
+
+#======================================================#
+################### Initial sequence ###################
+#======================================================#
+
+"""
+    get_init_sequence(s0, g::PottsGraph)
+
+Try to guess a reasonable init sequence from `s0`:
+- if `s0::AbstractSequence`, use it;
+- if `s0::Symbol`, then it should be among `[:random_codon, :random_aa, :random_num]`;
+  a random sequence of the corresponding type is created, using the length of `g`;
+- if `s0` is a vector of integers, convert it to `AASequence`, `CodonSequence` or `NumSequence`;
+  the conversion type depends on the alphabet of `g` and on the maximum element of `s0`.
+"""
+function get_init_sequence(s0::Symbol, g::PottsGraph; kwargs...)
+    (; L, q) = size(g)
+    return if s0 == :random_codon
+        @assert q == length(aa_alphabet) """
+            For sampling from `CodonSequence`, graph alphabet size must be $(length(aa_alphabet)).
+            Instead $q.
+            """
+        CodonSequence(L)
+    elseif s0 == :random_aa
+        @assert q == length(aa_alphabet) """
+            For sampling from `AASequence`, graph alphabet size must be $(length(aa_alphabet)).
+            Instead $q.
+            """
+        AASequence(L)
+    elseif s0 == :random_num
+        NumSequence(L, q)
+    else
+        error("Invalid symbol `init = $s0`. Options: `[:random_codon, :random_aa, :random_num]`")
+    end
+end
+get_init_sequence(s0::AbstractSequence, g; kwargs...) = s0
+function get_init_sequence(s0::AbstractVector{<:Integer}, g; verbose=true)
+    return if g.alphabet == aa_alphabet
+        if maximum(s0) <= 21
+            AASequence(s0)
+        elseif 21 < maximum(s0) <= 65
+            CodonSequence(s0)
+        else
+            error("Sequence $s0 incompatible with graph of size $(size(g))")
+        end
+    else
+        NumSequence(s0)
+    end
+end
+
 
 
 #=====================#
@@ -435,15 +503,32 @@ function sample_from_weights(W)
     return length(W)
 end
 
-"""
-    random_init_sequence(g::PottsGraph)
 
-Construct a random sequence of the type:
-- `CodonSequence` if `q == 21` (call to `CodonSequence(sequence_length)`)
-- `NumSequence` otherwise
-"""
-function random_init_sequence(g::PottsGraph, p)
-    # p not used, might use it in the future so I'm leaving it here
-    L, q = size(g)
-    return q == 21 ? CodonSequence(L) : NumSequence(L, q)
+function tmp_check_alphabet_consistency(g::PottsGraph, s0::CodonSequence)
+    if symbols(g.alphabet) != symbols(aa_alphabet)
+        @warn """
+            For now, sampling is only possible for graphs with the default alphabet $(aa_alphabet)
+            Instead $(g.alphabet)
+            """
+    end
+    return false
+end
+function tmp_check_alphabet_consistency(g::PottsGraph, s0::AASequence)
+    if symbols(g.alphabet) != symbols(aa_alphabet)
+        @warn """
+            For now, sampling is only possible for graphs with the default alphabet $(aa_alphabet)
+            Instead $(g.alphabet)
+            """
+    end
+    return false
+end
+tmp_check_alphabet_consistency(g::PottsGraph, s0::AbstractSequence) = true
+
+function return_params(p::SamplingParameters, s::T) where T <: AbstractSequence
+    d = Dict()
+    for field in propertynames(p)
+        d[field] = getproperty(p, field)
+    end
+    d[:sequence_type] = T
+    return d
 end

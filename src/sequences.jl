@@ -34,7 +34,7 @@ Methods that a subtype should implement
 
 mutable struct AASequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
-    function AASequence(x::Vector{T}) where T
+    function AASequence(x::AbstractVector{T}) where T
         q = length(aa_alphabet)
         @assert all(<=(q), x) "AA are represented by `(1..$(q))` integers. Instead, $x"
         return new{T}(x)
@@ -70,6 +70,8 @@ mutable struct CodonSequence{T<:Integer} <: AbstractSequence
     end
 end
 
+## Constructors
+
 """
     CodonSequence(seq::Vector{Integer}; source=:aa)
 
@@ -78,7 +80,7 @@ Build a `CodonSequence` from `seq`:
 - if `source==:aa`, `seq` is interpreted as representing amino acids (see `aa_alphabet`);
   matching codons are randomly chosen using the `PottsEvolver.reverse_code_rand` method.
 """
-function CodonSequence(seq::Vector{T}; source=:codon) where T <: Integer
+function CodonSequence(seq::AbstractVector{T}; source=:codon) where T <: Integer
     return if source == :aa
         CodonSequence(map(reverse_code_rand, seq), convert(Vector{T}, seq))
     elseif source == :codon
@@ -102,6 +104,8 @@ function CodonSequence(L::Int; source=:aa, T = IntType)
     return CodonSequence(rand(T(1):T(length(aa_alphabet)), L); source)
 end
 
+## Methods
+
 function Base.setindex!(s::CodonSequence, x::Integer, i)
     isstop(x) && @warn "Introducing stop codon in sequence"
     setindex!(s.aaseq, genetic_code(x), i)
@@ -109,19 +113,14 @@ function Base.setindex!(s::CodonSequence, x::Integer, i)
 end
 Base.copy(s::CodonSequence) = CodonSequence(copy(s.seq), copy(s.aaseq))
 
+
 translate(s::CodonSequence) = AASequence(s.aaseq)
-function sequence(x::CodonSequence; as_aa=false, as_codons=true)
-    if !xor(as_aa, as_codons)
-        error("Expected either `as_aa` or `as_codons`. Instead $as_aa $as_codons")
-    end
-    as_aa ? x.aaseq : x.seq
+function sequence(x::CodonSequence; as_codons=true)
+    as_codons ? x.seq : x.aaseq
 end
 
-function _sequence_alphabet(::Type{<:CodonSequence}; as_aa=false, as_codons=true)
-    if !xor(as_aa, as_codons)
-        error("Expected either `as_aa` or `as_codons`. Instead $as_aa $as_codons")
-    end
-    return as_aa ? aa_alphabet : codon_alphabet
+function _sequence_alphabet(::Type{<:CodonSequence}; as_codons=true)
+    return as_codons ? codon_alphabet : aa_alphabet
 end
 
 #============================================================#
@@ -136,42 +135,38 @@ end
         return new{T}(seq, q)
     end
 end
-NumSequence(L::Integer, q::Integer; T = IntType) = NumSequence(rand(T(1):T(q), L), T(q))
-
-
-
-Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
-
+NumSequence(seq::AbstractVector) = NumSequence(;seq)
 """
     NumSequence(L, q; T)
 
 Construct a random sequence of integers of length `L` using integers `1:q`.
 The integer type can be set using `T`.
 """
+NumSequence(L::Integer, q::Integer; T = IntType) = NumSequence(rand(T(1):T(q), L), T(q))
+
+
+Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
+
 
 #===========================================================================#
 ########################## Converting to Alignment ##########################
 #===========================================================================#
 
 """
-    Alignment(sequences; alphabet, names, as_aa, as_codons)
+    Alignment(sequences; alphabet, names, as_codons=true)
 
 Construct a `BioSequenceMappings.Alignment` from a set of sequences.
 If the sequences are `AASequence`, `alphabet` defaults to `aa_alphabet`.
-If they are `CodonSequence`, `as_aa` or `as_codon` can be used to decide whether the
+If they are `CodonSequence`, `as_codons` can be used to decide whether the
 alignment should store codons or amino acids. `alphabet` can be determined automatically
 from this.
 """
 function Alignment(
     S::AbstractVector{T};
-    names = nothing, as_aa=true, as_codons=false,
-    alphabet = _sequence_alphabet(eltype(S); as_aa, as_codons),
+    names = nothing, as_codons=true,
+    alphabet = _sequence_alphabet(T; as_codons),
 ) where T <: AbstractSequence
 
-    # Checks
-    if !xor(as_aa, as_codons)
-        error("Expected either `as_aa` or `as_codons`. Instead $as_aa $as_codons")
-    end
     if !allequal(Iterators.map(length, S))
         error("Sequences do not have the same length")
     end
@@ -179,16 +174,35 @@ function Alignment(
         error("Got $(length(names)) but $(length(S)) sequences.")
     end
 
-    data = hcat([sequence(s; as_aa, as_codons) for s in S]...)
+    data = hcat([sequence(s; as_codons) for s in S]...)
 
     return Alignment(data, alphabet; names)
 end
 
 
+function genetic_code(A::Alignment, alphabet=aa_alphabet)
+    if A.alphabet != codon_alphabet
+        error("""
+            Function should be called on alignment of codon sequences.
+            Instead `A.alphabet`: $(A.alphabet)
+        """)
+    end
+    S = map(x -> genetic_code.(x), A) # this translates to default aa_alphabet
+    if alphabet != aa_alphabet
+        # translate to requested alphabet if needed
+        S = map(x -> BioSequenceMappings.translate(x, aa_alphabet, alphabet))
+    end
+    return Alignment(S, alphabet; A.names, A.weights)
+end
+
 #==================#
 ####### Misc #######
 #==================#
 
+"""
+    hamming(x::AbstractSequence, y::AbstractSequence)
+    hamming(x::CodonSequence, y::CodonSequence; source=:codon, kwargs...)
+"""
 function BioSequenceMappings.hamming(x::AbstractSequence, y::AbstractSequence; kwargs...)
     return hamming(x.seq, y.seq; kwargs...)
 end
@@ -202,5 +216,20 @@ function BioSequenceMappings.hamming(
         hamming(x.aaseq, y.aaseq; kwargs...)
     else
         error("Valid `source` values: `:codon` or `:aa`. Instead $source")
+    end
+end
+
+
+function intvec_to_sequence(s::AbstractVector{<:Integer}; v=true)
+    q = maximum(s)
+    return if q < 21 || q > 65
+        v && @info "Assume sequence $s is a `NumSequence`"
+        NumSequence(s)
+    elseif q == 21
+        v && @info "Assume sequence $s is an `AASequence`"
+        AASequence(s)
+    else
+        v && @info "Assume sequence $s is a `CodonSequence`"
+        CodonSequence(s, q; source=:codon)
     end
 end

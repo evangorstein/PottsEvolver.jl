@@ -50,8 +50,11 @@ end
 #==========================================#
 ############### Genetic code ###############
 #==========================================#
-
-const aa_order = ['K', 'N', 'K', 'N', 'T', 'T', 'T', 'T', 'R', 'S', 'R', 'S', 'I', 'I', 'M', 'I', 'Q', 'H', 'Q', 'H', 'P', 'P', 'P', 'P', 'R', 'R', 'R', 'R', 'L', 'L', 'L', 'L', 'E', 'D', 'E', 'D', 'A', 'A', 'A', 'A', 'G', 'G', 'G', 'G', 'V', 'V', 'V', 'V', '*', 'Y', '*', 'Y', 'S', 'S', 'S', 'S', '*', 'C', 'W', 'C', 'L', 'F', 'L', 'F']
+#! format: off
+const aa_order = [
+'K', 'N', 'K', 'N', 'T', 'T', 'T', 'T', 'R', 'S', 'R', 'S', 'I', 'I', 'M', 'I', 'Q', 'H', 'Q', 'H', 'P', 'P', 'P', 'P', 'R', 'R', 'R', 'R', 'L', 'L', 'L', 'L', 'E', 'D', 'E', 'D', 'A', 'A', 'A', 'A', 'G', 'G', 'G', 'G', 'V', 'V', 'V', 'V', '*', 'Y', '*', 'Y', 'S', 'S', 'S', 'S', '*', 'C', 'W', 'C', 'L', 'F', 'L', 'F'
+]
+#! format: on
 const _genetic_code_struct = let
     code = Dict{Codon, Char}()
     i = 1
@@ -160,12 +163,16 @@ iscoding(c::Codon) = !isgap(c) && !isstop(c) && isvalid(c)
 
 # pre-computed for faster calculations on integers
 
-const gap_codon_index = findfirst(isgap, symbols(codon_alphabet)) |> IntType
 const stop_codon_indices = IntType.(findall(isstop, symbols(codon_alphabet)))
-isgap(i::Integer) = (i == gap_codon_index)
 isstop(i::Integer) = in(i, stop_codon_indices)
 
-iscoding(c::Integer) = !isgap(c) && !isstop(c)
+# isgap should also work on amino acids : pass alphabet
+const gap_codon_index = findfirst(isgap, symbols(codon_alphabet)) |> IntType
+isgap(i::Integer, alphabet::Alphabet) = isgap(alphabet(i))
+isgap(c::AbstractChar) = (c == '-')
+
+
+iscoding(c::Integer) = !isgap(c, codon_alphabet) && !isstop(c)
 const coding_codons = IntType.(findall(iscoding, 1:length(codon_alphabet)))
 
 function to_string(s::AbstractVector{<:Integer}, alphabet::Alphabet{Codon, <:Integer})

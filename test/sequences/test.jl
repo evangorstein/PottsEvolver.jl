@@ -92,14 +92,11 @@ end
     @test A isa Alignment{Char, PottsEvolver.IntType}
     @test A.alphabet == aa_alphabet
 
-    A = Alignment(codonseqs; as_aa=false, as_codons=true)
+    A = Alignment(codonseqs; as_codons=true)
     @test A isa Alignment{PottsEvolver.Codon, PottsEvolver.IntType}
     @test A.alphabet == codon_alphabet
 
-    A = Alignment(codonseqs; as_aa=true, as_codons=false)
+    A = Alignment(codonseqs; as_codons=false)
     @test A isa Alignment{Char, PottsEvolver.IntType}
     @test A.alphabet == aa_alphabet
-
-    @test_throws ErrorException Alignment(codonseqs; as_codons=true, as_aa=true)
-    @test_throws ErrorException Alignment(codonseqs; as_codons=false, as_aa=false)
 end

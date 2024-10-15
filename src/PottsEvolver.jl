@@ -5,6 +5,7 @@ using ProgressMeter
 using Random
 using StatsBase
 using TreeTools
+using UnPack
 
 export hamming, symbols # from BioSequenceMappings
 
@@ -18,13 +19,12 @@ import BioSequenceMappings: Alignment, to_string, hamming
 
 # Default types for numerical quantities
 const IntType = UInt8
-const FloatType = Float32
+const FloatType = Float64
 
 
 include("codons.jl")
 export codon_alphabet, aa_alphabet, nt_alphabet
 export bases, genetic_code
-export isstop, isgap
 
 include("sequences.jl")
 export AbstractSequence, AASequence, CodonSequence
@@ -40,6 +40,8 @@ export mcmc_sample, SamplingParameters
 
 include("IO.jl")
 export read_graph, read_potts_graph
+
+include("tools/tools.jl")
 
 #=
 - codons.jl: alphabets and genetic code
