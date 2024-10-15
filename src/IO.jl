@@ -54,12 +54,12 @@ function read_graph_extended(file, T=FloatType)
         if line[1] == 'J'
             i, j, a, b, val = parse_coupling_line(line, T)
             index_style == 0 && (i += 1; j += 1; a += 1; b += 1)
-            g.J[a,b,i,j] = val
-            g.J[b,a,j,i] = val
+            g.J[a, b, i, j] = val
+            g.J[b, a, j, i] = val
         elseif line[1] == 'h'
             i, a, val = parse_field_line(line, T)
             index_style == 0 && (i += 1; a += 1)
-            g.h[a,i] = val
+            g.h[a, i] = val
         end
     end
 
@@ -108,8 +108,8 @@ function write_graph_extended(file::AbstractString, g::PottsGraph, sigdigits, in
     @assert index_style == 0 || index_style == 1 "Got `index_style==`$(index_style)"
     L, q = size(g)
     open(file, "w") do f
-        for i in 1:L, j in (i+1):L, a in 1:q, b in 1:q
-            val = round(g.J[a,b,i,j]; sigdigits)
+        for i in 1:L, j in (i + 1):L, a in 1:q, b in 1:q
+            val = round(g.J[a, b, i, j]; sigdigits)
             if index_style == 0
                 write(f, "J $(i-1) $(j-1) $(a-1) $(b-1) $val\n")
             elseif index_style == 1
@@ -117,11 +117,11 @@ function write_graph_extended(file::AbstractString, g::PottsGraph, sigdigits, in
             end
         end
         for i in 1:L, a in 1:q
-            val = round(g.h[a,i]; sigdigits)
+            val = round(g.h[a, i]; sigdigits)
             if index_style == 0
-                write(f, "h $(i-1) $(a-1) $val\n" )
+                write(f, "h $(i-1) $(a-1) $val\n")
             elseif index_style == 1
-                write(f, "h $i $a $val\n" )
+                write(f, "h $i $a $val\n")
             end
         end
     end

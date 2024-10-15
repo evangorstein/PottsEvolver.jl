@@ -2,7 +2,7 @@ abstract type AbstractSequence end
 
 Base.getindex(s::AbstractSequence, i) = getindex(s.seq, i)
 Base.setindex!(s::AbstractSequence, x, i) = setindex!(s.seq, x, i)
-function Base.:(==)(x::T, y::T) where T <: AbstractSequence
+function Base.:(==)(x::T, y::T) where {T<:AbstractSequence}
     return all(p -> getproperty(x, p) == getproperty(y, p), propertynames(x))
 end
 function Base.hash(x::AbstractSequence, h::UInt)
@@ -17,7 +17,6 @@ Base.eltype(s::AbstractSequence) = eltype(s.seq)
 # the two functions below: used in Alignment
 sequence(x::AbstractSequence; kwargs...) = x.seq
 _sequence_alphabet(::Type{<:AbstractSequence}; kwargs...) = nothing
-
 
 #=
 Methods that a subtype should implement
@@ -34,7 +33,7 @@ Methods that a subtype should implement
 
 mutable struct AASequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
-    function AASequence(x::AbstractVector{T}) where T
+    function AASequence(x::AbstractVector{T}) where {T}
         q = length(aa_alphabet)
         @assert all(<=(q), x) "AA are represented by `(1..$(q))` integers. Instead, $x"
         return new{T}(x)
@@ -42,7 +41,7 @@ mutable struct AASequence{T<:Integer} <: AbstractSequence
 end
 
 Base.copy(s::AASequence) = AASequence(copy(s.seq))
-AASequence(L::Integer; T = IntType) = AASequence(rand(T(1):T(length(aa_alphabet)), L))
+AASequence(L::Integer; T=IntType) = AASequence(rand(T(1):T(length(aa_alphabet)), L))
 
 _sequence_alphabet(::Type{<:AASequence}; kwargs...) = aa_alphabet
 
@@ -53,7 +52,7 @@ _sequence_alphabet(::Type{<:AASequence}; kwargs...) = aa_alphabet
 mutable struct CodonSequence{T<:Integer} <: AbstractSequence
     seq::Vector{T} # the codons
     aaseq::Vector{T} # the translation
-    function CodonSequence(seq::Vector{T}, aaseq::Vector{T}) where T
+    function CodonSequence(seq::Vector{T}, aaseq::Vector{T}) where {T}
         qc = length(codon_alphabet)
         qaa = length(aa_alphabet)
         @assert all(<=(qc), seq) """
@@ -80,15 +79,14 @@ Build a `CodonSequence` from `seq`:
 - if `source==:aa`, `seq` is interpreted as representing amino acids (see `aa_alphabet`);
   matching codons are randomly chosen using the `PottsEvolver.reverse_code_rand` method.
 """
-function CodonSequence(seq::AbstractVector{T}; source=:codon) where T <: Integer
+function CodonSequence(seq::AbstractVector{T}; source=:codon) where {T<:Integer}
     return if source == :aa
         CodonSequence(map(reverse_code_rand, seq), convert(Vector{T}, seq))
     elseif source == :codon
         aaseq = map(genetic_code, seq)
         any(isnothing, aaseq) && error("""
             Cannot build `CodonSequence` from input that contains stop codon.
-            Input sequence was $seq."""
-        )
+            Input sequence was $seq.""")
         CodonSequence(convert(Vector{T}, seq), aaseq)
     else
         error("Unknown `source` $(source). Use `:aa` or `:codon`.")
@@ -100,7 +98,7 @@ end
 Sample `L` states at random of the type of `source` (`:aa` or `:codon`).
 Underlying integer type is `T`.
 """
-function CodonSequence(L::Int; source=:aa, T = IntType)
+function CodonSequence(L::Int; source=:aa, T=IntType)
     return CodonSequence(rand(T(1):T(length(aa_alphabet)), L); source)
 end
 
@@ -113,10 +111,9 @@ function Base.setindex!(s::CodonSequence, x::Integer, i)
 end
 Base.copy(s::CodonSequence) = CodonSequence(copy(s.seq), copy(s.aaseq))
 
-
 translate(s::CodonSequence) = AASequence(s.aaseq)
 function sequence(x::CodonSequence; as_codons=true)
-    as_codons ? x.seq : x.aaseq
+    return as_codons ? x.seq : x.aaseq
 end
 
 function _sequence_alphabet(::Type{<:CodonSequence}; as_codons=true)
@@ -130,23 +127,21 @@ end
 @kwdef mutable struct NumSequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
     q::T = maximum(seq)
-    function NumSequence(seq::AbstractVector{T}, q) where T
+    function NumSequence(seq::AbstractVector{T}, q) where {T}
         @assert all(<=(q), seq) "All entries in `seq` must be smaller than $q. Instead $seq"
         return new{T}(seq, q)
     end
 end
-NumSequence(seq::AbstractVector) = NumSequence(;seq)
+NumSequence(seq::AbstractVector) = NumSequence(; seq)
 """
     NumSequence(L, q; T)
 
 Construct a random sequence of integers of length `L` using integers `1:q`.
 The integer type can be set using `T`.
 """
-NumSequence(L::Integer, q::Integer; T = IntType) = NumSequence(rand(T(1):T(q), L), T(q))
-
+NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence(rand(T(1):T(q), L), T(q))
 
 Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
-
 
 #===========================================================================#
 ########################## Converting to Alignment ##########################
@@ -163,10 +158,10 @@ from this.
 """
 function Alignment(
     S::AbstractVector{T};
-    names = nothing, as_codons=true,
-    alphabet = _sequence_alphabet(T; as_codons),
-) where T <: AbstractSequence
-
+    names=nothing,
+    as_codons=true,
+    alphabet=_sequence_alphabet(T; as_codons),
+) where {T<:AbstractSequence}
     if !allequal(Iterators.map(length, S))
         error("Sequences do not have the same length")
     end
@@ -178,7 +173,6 @@ function Alignment(
 
     return Alignment(data, alphabet; names)
 end
-
 
 function genetic_code(A::Alignment, alphabet=aa_alphabet)
     if A.alphabet != codon_alphabet
@@ -207,8 +201,7 @@ function BioSequenceMappings.hamming(x::AbstractSequence, y::AbstractSequence; k
     return hamming(x.seq, y.seq; kwargs...)
 end
 function BioSequenceMappings.hamming(
-    x::CodonSequence, y::CodonSequence;
-    source = :codon, kwargs...,
+    x::CodonSequence, y::CodonSequence; source=:codon, kwargs...
 )
     return if source == :codon
         hamming(x.seq, y.seq; kwargs...)
@@ -218,7 +211,6 @@ function BioSequenceMappings.hamming(
         error("Valid `source` values: `:codon` or `:aa`. Instead $source")
     end
 end
-
 
 function intvec_to_sequence(s::AbstractVector{<:Integer}; v=true)
     q = maximum(s)

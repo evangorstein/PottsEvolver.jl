@@ -27,7 +27,7 @@ fraction_gap_step::Float64 = 0.9
     step_type::Symbol = :gibbs
     step_meaning::Symbol = :accepted
     Teq::Int
-    burnin::Int = 5*Teq
+    burnin::Int = 5 * Teq
     fraction_gap_step::Float64 = 0.9
     function SamplingParameters(step_type, step_meaning, Teq, burnin, fraction_gap_step)
         @assert step_meaning in VALID_STEP_MEANINGS """
@@ -41,7 +41,6 @@ fraction_gap_step::Float64 = 0.9
         return new(step_type, step_meaning, Teq, burnin, fraction_gap_step)
     end
 end
-
 
 """
     mcmc_sample(
@@ -66,7 +65,10 @@ it is used if `init::CodonSequence`, otherwise not.
 function mcmc_sample end
 
 function mcmc_sample(
-    g::PottsGraph, M::Int, s0::AbstractSequence, params::SamplingParameters;
+    g::PottsGraph,
+    M::Int,
+    s0::AbstractSequence,
+    params::SamplingParameters;
     rng=Random.GLOBAL_RNG,
     verbose=0,
     progress_meter=true,
@@ -81,15 +83,15 @@ function mcmc_sample(
     @assert Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(Teq)"
     @assert M > 0 "Number of samples `M` must be >0. Instead $M"
     tmp_check_alphabet_consistency(g, s0)
-    verbose>0 && @info """
-        Sampling $M sequences using the following settings:
-        - Steps between samples = $(Teq)
-        - burnin = $(burnin)
-        - Step style = $(params.step_type)
-        - Branch length style = $(params.step_meaning)
-        - fraction of gap steps (if codon) = $(params.fraction_gap_step)
-    """
-    verbose>0 && @info "Initial sequence: $s0"
+    verbose > 0 && @info """
+          Sampling $M sequences using the following settings:
+          - Steps between samples = $(Teq)
+          - burnin = $(burnin)
+          - Step style = $(params.step_type)
+          - Branch length style = $(params.step_meaning)
+          - fraction of gap steps (if codon) = $(params.fraction_gap_step)
+      """
+    verbose > 0 && @info "Initial sequence: $s0"
 
     L, q = size(g)
 
@@ -103,7 +105,7 @@ function mcmc_sample(
     gibbs_holder = get_gibbs_holder(s0)
 
     # Burnin
-    verbose>0 && println("Initializing with $(burnin) burnin iterations... ")
+    verbose > 0 && println("Initializing with $(burnin) burnin iterations... ")
     burnin > 0 && mcmc_steps!(conf, g, burnin, params; rng, gibbs_holder)
     S[1] = copy(conf)
     tvals[1] = burnin
@@ -111,12 +113,12 @@ function mcmc_sample(
     # Sampling
     log_info = []
     progress = Progress(
-        M-1;
-        barglyphs = BarGlyphs("[=> ]"),
+        M - 1;
+        barglyphs=BarGlyphs("[=> ]"),
         desc="Sampling: ",
         showspeed=true,
-        enabled = progress_meter,
-        dt = 2,
+        enabled=progress_meter,
+        dt=2,
     )
     time = @elapsed for m in 2:M
         # doing Teq steps on the current configuration
@@ -125,28 +127,22 @@ function mcmc_sample(
         )
         # storing the result in S
         S[m] = copy(conf)
-        tvals[m] = tvals[m-1] + Teq
+        tvals[m] = tvals[m - 1] + Teq
         # misc.
-        push!(log_info, (proposed=proposed, performed=performed, ratio=performed/proposed))
-        next!(
-            progress;
-            showvalues = [("steps", m+1), ("total", M)],
+        push!(
+            log_info, (proposed=proposed, performed=performed, ratio=performed / proposed)
         )
+        next!(progress; showvalues=[("steps", m + 1), ("total", M)])
     end
-    verbose>0 && @info "Sampling done in $time seconds"
+    verbose > 0 && @info "Sampling done in $time seconds"
 
     sequences = if alignment_output
-        A = Alignment(S; names = tvals)
+        A = Alignment(S; names=tvals)
         translate_output ? genetic_code(A) : A
     else
         S
     end
-    return (;
-        sequences,
-        tvals,
-        info = log_info,
-        params = return_params(params, s0),
-    )
+    return (; sequences, tvals, info=log_info, params=return_params(params, s0))
 end
 """
     mcmc_sample(
@@ -157,8 +153,12 @@ Secondary form: choose the initial sequence based on `init` and `g`.
 See `PottsEvolver.get_init_sequence` for more information.
 """
 function mcmc_sample(
-    g::PottsGraph, M::Integer, params::SamplingParameters;
-    init = :random_num, verbose=0, kwargs...
+    g::PottsGraph,
+    M::Integer,
+    params::SamplingParameters;
+    init=:random_num,
+    verbose=0,
+    kwargs...,
 )
     s0 = get_init_sequence(init, g; verbose)
     return mcmc_sample(g, M, s0, params; verbose, kwargs...)
@@ -176,8 +176,13 @@ The step type (`:gibbs`, `:metropolis`) and the interpretation of `num_steps`
 Modifies the input sequence `s` and returns it.
 """
 function mcmc_steps!(
-    s::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
-    rng = Random.GLOBAL_RNG, gibbs_holder = get_gibbs_holder(s), verbose=false,
+    s::AbstractSequence,
+    g::PottsGraph,
+    num_steps::Integer,
+    p::SamplingParameters;
+    rng=Random.GLOBAL_RNG,
+    gibbs_holder=get_gibbs_holder(s),
+    verbose=false,
 )
     step_func! = if p.step_type == :gibbs
         gibbs_step!
@@ -226,7 +231,6 @@ the input arguments should be
 `(sequence, graph, params, holder)` where holder is only really used for gibbs
 =#
 
-
 #===============================================================#
 ###################### CodonSequence steps ######################
 #===============================================================#
@@ -243,7 +247,7 @@ function gibbs_step!(
 end
 
 function metropolis_step!(s::CodonSequence, g::PottsGraph, p::SamplingParameters; kwargs...)
-    error("Not implemented")
+    return error("Not implemented")
 end
 
 """
@@ -252,8 +256,7 @@ end
 Change one coding codon in `s` into another coding codon.
 """
 function aa_gibbs_step!(
-    s::CodonSequence, g::PottsGraph, gibbs_holder;
-    rng = Random.GLOBAL_RNG,
+    s::CodonSequence, g::PottsGraph, gibbs_holder; rng=Random.GLOBAL_RNG
 )
     p = gibbs_holder
     # new_codons and new_aas are arrays but should _NOT_ be mutated
@@ -261,26 +264,26 @@ function aa_gibbs_step!(
     aaref = s.aaseq[i]
 
     # Constructing the gibbs field p
-     for (a, aanew) in enumerate(new_aas)
+    for (a, aanew) in enumerate(new_aas)
         if aanew == aaref
-            p[a] = 0. # energy for now
+            p[a] = 0.0 # energy for now
         else
             # ΔE is minus the energy --> softmax(ΔE) is the Boltzmann distribution
             # ~ high ΔE is more probable
-            ΔE = - aa_degeneracy(aanew) + aa_degeneracy(aaref) # log-degeneracy of gen code
-            ΔE += g.h[aanew,i] - g.h[aaref,i]
+            ΔE = -aa_degeneracy(aanew) + aa_degeneracy(aaref) # log-degeneracy of gen code
+            ΔE += g.h[aanew, i] - g.h[aaref, i]
             for j in 1:length(s)
                 if j != i
                     ΔE += g.J[aanew, s.aaseq[j], i, j] - g.J[aaref, s.aaseq[j], i, j]
                 end
             end
-            p[a] = g.β*ΔE
+            p[a] = g.β * ΔE
         end
     end
 
     # Sampling from p
     if length(new_aas) < length(p)
-        p[(length(new_aas)+1):end] .= -Inf
+        p[(length(new_aas) + 1):end] .= -Inf
     end
     softmax!(p)
     c = sample_from_weights(p)
@@ -292,26 +295,24 @@ function aa_gibbs_step!(
     return (i=i, new_state=s[i], accepted=accepted, changed=changed)
 end
 function aa_gibbs_step!(
-    s::CodonSequence, g::PottsGraph{T};
-    gibbs_holder=zeros(T, 4), kwargs...
-) where T
+    s::CodonSequence, g::PottsGraph{T}; gibbs_holder=zeros(T, 4), kwargs...
+) where {T}
     return aa_gibbs_step!(s, g, gibbs_holder; kwargs...)
 end
 
 function gap_metropolis_step!(
-    s::CodonSequence, g::PottsGraph;
-    rng = Random.GLOBAL_RNG, kwargs...,
+    s::CodonSequence, g::PottsGraph; rng=Random.GLOBAL_RNG, kwargs...
 )
     i = rand(1:length(s))
     codon_ref = s.seq[i]
     aa_ref = s.aaseq[i]
     # di Bari et. al.
-    β = 1/n_aa_codons # aa to gap transition
+    β = 1 / n_aa_codons # aa to gap transition
     return if isgap(codon_ref, codon_alphabet)
         # Pick any non gap codon and try to mutate to it
         codon_new = rand(coding_codons)
         aa_new = genetic_code(codon_new)
-        ΔE = - aa_degeneracy(aa_new) + aa_degeneracy(aa_ref)
+        ΔE = -aa_degeneracy(aa_new) + aa_degeneracy(aa_ref)
         ΔE += g.h[aa_new, i] - g.h[aa_ref, i]
         for j in 1:length(s)
             if j != i
@@ -322,7 +323,7 @@ function gap_metropolis_step!(
         _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
     else
         # Try to replace s[i] by the gap codon
-        if rand() < 1-β
+        if rand() < 1 - β
             # with probability 1-β do nothing
             # return value below should match _metropolis_step!(::CodonSequence, ...)
             (i=i, new_state=s[i], accepted=false, changed=false)
@@ -350,7 +351,7 @@ function _metropolis_step!(s::CodonSequence, ΔE, i, codon_new, aa_new, aa_ref)
     return if ΔE >= 0 || rand() < exp(ΔE)
         s[i] = codon_new
         s.aaseq[i] = aa_new
-        (i=i, new_state=s[i], accepted=true, changed=aa_new==aa_ref)
+        (i=i, new_state=s[i], accepted=true, changed=aa_new == aa_ref)
     else
         (i=i, new_state=s[i], accepted=false, changed=false)
     end
@@ -361,8 +362,11 @@ end
 #===================================================#
 
 function gibbs_step!(
-    s::AbstractSequence, g::PottsGraph, p::SamplingParameters, gibbs_holder;
-    rng = Random.GLOBAL_RNG,
+    s::AbstractSequence,
+    g::PottsGraph,
+    p::SamplingParameters,
+    gibbs_holder;
+    rng=Random.GLOBAL_RNG,
 )
     p = gibbs_holder
     q = length(gibbs_holder)
@@ -371,15 +375,15 @@ function gibbs_step!(
     a_ref = s[i]
     for a in 1:q
         if a == a_ref
-            p[a] = 0.
+            p[a] = 0.0
         else
-            ΔE = g.h[a,i] - g.h[a_ref,i]
+            ΔE = g.h[a, i] - g.h[a_ref, i]
             for j in 1:length(s)
                 if j != i
                     ΔE += g.J[a, s[j], i, j] - g.J[a_ref, s[j], i, j]
                 end
             end
-            p[a] = g.β*ΔE
+            p[a] = g.β * ΔE
         end
     end
 
@@ -387,9 +391,8 @@ function gibbs_step!(
     c = wsample(p)
     s[i] = wsample(p)
     changed = (a_ref != s[i])
-    return (;i, new_state=s[i], accepted=true, changed)
+    return (; i, new_state=s[i], accepted=true, changed)
 end
-
 
 #======================================================#
 ################### Initial sequence ###################
@@ -422,7 +425,9 @@ function get_init_sequence(s0::Symbol, g::PottsGraph; kwargs...)
     elseif s0 == :random_num
         NumSequence(L, q)
     else
-        error("Invalid symbol `init = $s0`. Options: `[:random_codon, :random_aa, :random_num]`")
+        error(
+            "Invalid symbol `init = $s0`. Options: `[:random_codon, :random_aa, :random_num]`",
+        )
     end
 end
 get_init_sequence(s0::AbstractSequence, g; kwargs...) = s0
@@ -440,8 +445,6 @@ function get_init_sequence(s0::AbstractVector{<:Integer}, g; verbose=true)
     end
 end
 
-
-
 #=====================#
 ######## Utils ########
 #=====================#
@@ -453,7 +456,7 @@ Pick a valid codon to mutate in `s`.
 Return the position `i`, the base `b`, new potential codons and aas.
 Gap codons cannot be mutated using this.
 """
-function pick_aa_mutation(s::CodonSequence; rng = Random.GLOBAL_RNG)
+function pick_aa_mutation(s::CodonSequence; rng=Random.GLOBAL_RNG)
     max_cnt = 1000
     cnt = 1
     # Pick i and b, and see if we can mutate the codon (if it's a gap we can't)
@@ -478,7 +481,7 @@ function softmax!(X)
     # thanks chatGPT!
     # Compute the maximum value in X to ensure numerical stability
     max_val = maximum(X)
-    Z = 0.
+    Z = 0.0
     @inbounds for i in eachindex(X)
         X[i] -= max_val
         X[i] = exp(X[i])
@@ -493,7 +496,7 @@ end
 function sample_from_weights(W)
     # !!! Assumes W is normalized !!!
     x = rand()
-    z = 0.
+    z = 0.0
     for (i, w) in enumerate(W)
         z += w
         if x < z
@@ -502,7 +505,6 @@ function sample_from_weights(W)
     end
     return length(W)
 end
-
 
 function tmp_check_alphabet_consistency(g::PottsGraph, s0::CodonSequence)
     if symbols(g.alphabet) != symbols(aa_alphabet)
@@ -524,7 +526,7 @@ function tmp_check_alphabet_consistency(g::PottsGraph, s0::AASequence)
 end
 tmp_check_alphabet_consistency(g::PottsGraph, s0::AbstractSequence) = true
 
-function return_params(p::SamplingParameters, s::T) where T <: AbstractSequence
+function return_params(p::SamplingParameters, s::T) where {T<:AbstractSequence}
     d = Dict()
     for field in propertynames(p)
         d[field] = getproperty(p, field)

@@ -26,14 +26,14 @@ end
 @testset "CodonSequence" begin
     @testset "From aa" begin
         aas = collect(1:6) # Int
-        codon_seq = CodonSequence(aas; source = :aa)
+        codon_seq = CodonSequence(aas; source=:aa)
 
         @test codon_seq isa CodonSequence{Int}
         @test translate(codon_seq).seq == codon_seq.aaseq
     end
 
     @testset "From codons" begin
-    # Create an example codon sequence with matching amino acids
+        # Create an example codon sequence with matching amino acids
         codons = Int8.([1, 2, 3, 6, 7])
         aas = map(genetic_code, codons)
         codon_seq = CodonSequence(codons)
@@ -63,7 +63,7 @@ end
 @testset "NumSequence Tests" begin
     # Test constructing the object
     L, q = (10, 5)
-    num_seq = PottsEvolver.NumSequence(L, q; T = Int32)
+    num_seq = PottsEvolver.NumSequence(L, q; T=Int32)
     @test num_seq isa PottsEvolver.NumSequence{Int32}
     @test length(num_seq) == L
 
@@ -85,18 +85,18 @@ end
     codonseqs = map(_ -> CodonSequence(L), 1:M)
 
     A = Alignment(numseqs)
-    @test A isa Alignment{Nothing, Int32}
+    @test A isa Alignment{Nothing,Int32}
     @test isnothing(A.alphabet)
 
     A = Alignment(aaseqs)
-    @test A isa Alignment{Char, PottsEvolver.IntType}
+    @test A isa Alignment{Char,PottsEvolver.IntType}
     @test A.alphabet == aa_alphabet
 
     A = Alignment(codonseqs; as_codons=true)
-    @test A isa Alignment{PottsEvolver.Codon, PottsEvolver.IntType}
+    @test A isa Alignment{PottsEvolver.Codon,PottsEvolver.IntType}
     @test A.alphabet == codon_alphabet
 
     A = Alignment(codonseqs; as_codons=false)
-    @test A isa Alignment{Char, PottsEvolver.IntType}
+    @test A isa Alignment{Char,PottsEvolver.IntType}
     @test A.alphabet == aa_alphabet
 end

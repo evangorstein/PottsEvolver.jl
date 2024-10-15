@@ -42,7 +42,7 @@ Default alphabets for `PottsEvolver`.
 """
 const codon_alphabet = let
     nt = nucleotides
-    C = map(x -> Codon(x...), Iterators.product(nt, nt, nt)) |> vec
+    C = vec(map(x -> Codon(x...), Iterators.product(nt, nt, nt)))
     pushfirst!(C, Codon('-', '-', '-'))
     Alphabet(C, IntType)
 end
@@ -56,17 +56,17 @@ const aa_order = [
 ]
 #! format: on
 const _genetic_code_struct = let
-    code = Dict{Codon, Char}()
+    code = Dict{Codon,Char}()
     i = 1
     for a in nucleotides, b in nucleotides, c in nucleotides
-        code[Codon(a,b,c)] = aa_order[i]
+        code[Codon(a, b, c)] = aa_order[i]
         i += 1
     end
     code[Codon('-', '-', '-')] = '-'
     code
 end
 const _genetic_code_integers = let
-    code = Dict{IntType, Union{Nothing, IntType}}()
+    code = Dict{IntType,Union{Nothing,IntType}}()
     for (codon, aa) in _genetic_code_struct
         code[codon_alphabet(codon)] = aa == '*' ? nothing : aa_alphabet(aa)
     end
@@ -78,9 +78,9 @@ end
 Translate the `i`th codon and return the index of the corresponding amino acid, using
 the default `aa_alphabet`
 """
-function genetic_code(codon::T) where T <: Integer
+function genetic_code(codon::T) where {T<:Integer}
     aa = _genetic_code_integers[codon]
-    isnothing(aa) ? aa : T(aa)
+    return isnothing(aa) ? aa : T(aa)
 end
 """
     genetic_code(c::Codon)
@@ -89,14 +89,15 @@ Translate `c` and return the amino acid as a `Char`.
 """
 genetic_code(codon::Codon) = _genetic_code_struct[codon]
 
-
 """
     reverse_code(aa)
 
 Return the set of codons coding for `aa`.
 """
-function reverse_code(aa::T) where T <: Integer
-    return T.(findall(c -> genetic_code(c)==aa_alphabet(aa), codon_alphabet.index_to_char))
+function reverse_code(aa::T) where {T<:Integer}
+    return T.(
+        findall(c -> genetic_code(c) == aa_alphabet(aa), codon_alphabet.index_to_char)
+    )
 end
 reverse_code(aa::AbstractChar) = map(codon_alphabet, reverse_code(aa_alphabet(aa)))
 """
@@ -112,13 +113,11 @@ function reverse_code_rand(aa::Integer)
     end
     return rand(codons)
 end
-reverse_code_rand(aa::AbstractChar) = aa_alphabet(aa) |> reverse_code_rand |> codon_alphabet
-
+reverse_code_rand(aa::AbstractChar) = codon_alphabet(reverse_code_rand(aa_alphabet(aa)))
 
 #========================================================================#
 ######################### Codon helper functions #########################
 #========================================================================#
-
 
 function Base.show(io::IO, c::Codon)
     aa, iaa = if !isstop(c)
@@ -131,7 +130,7 @@ function Base.show(io::IO, c::Codon)
         aa, iaa
     end
     # print(io, "Codon $(codon_alphabet(c)): \"$(c.b1)$(c.b2)$(c.b3)\" --> $aa($iaa)")
-    print(io, "\"$(c.b1)$(c.b2)$(c.b3)\"")
+    return print(io, "\"$(c.b1)$(c.b2)$(c.b3)\"")
 end
 function Base.show(io::IO, x::MIME"text/plain", c::Codon)
     aa, iaa = if !isstop(c)
@@ -143,7 +142,9 @@ function Base.show(io::IO, x::MIME"text/plain", c::Codon)
         iaa = "STOP"
         aa, iaa
     end
-    println(io, "Codon $(codon_alphabet(c)): \"$(c.b1)$(c.b2)$(c.b3)\" --> $aa($iaa)")
+    return println(
+        io, "Codon $(codon_alphabet(c)): \"$(c.b1)$(c.b2)$(c.b3)\" --> $aa($iaa)"
+    )
 end
 
 # Only all gaps or all nt codons are valid
@@ -167,15 +168,14 @@ const stop_codon_indices = IntType.(findall(isstop, symbols(codon_alphabet)))
 isstop(i::Integer) = in(i, stop_codon_indices)
 
 # isgap should also work on amino acids : pass alphabet
-const gap_codon_index = findfirst(isgap, symbols(codon_alphabet)) |> IntType
+const gap_codon_index = IntType(findfirst(isgap, symbols(codon_alphabet)))
 isgap(i::Integer, alphabet::Alphabet) = isgap(alphabet(i))
 isgap(c::AbstractChar) = (c == '-')
-
 
 iscoding(c::Integer) = !isgap(c, codon_alphabet) && !isstop(c)
 const coding_codons = IntType.(findall(iscoding, 1:length(codon_alphabet)))
 
-function to_string(s::AbstractVector{<:Integer}, alphabet::Alphabet{Codon, <:Integer})
+function to_string(s::AbstractVector{<:Integer}, alphabet::Alphabet{Codon,<:Integer})
     return prod(x -> prod(bases(alphabet(x))), s)
 end
 
@@ -198,7 +198,7 @@ what other codons are accessible by one mutation?
 =#
 
 const _codon_access_map = let
-    M = Dict{Tuple{IntType,IntType}, Tuple{Vector{IntType}, Vector{IntType}}}()
+    M = Dict{Tuple{IntType,IntType},Tuple{Vector{IntType},Vector{IntType}}}()
     for c in 1:length(codon_alphabet), i in 1:3
         codon = codon_alphabet(c)
         if !isgap(codon) && isvalid(codon)
@@ -208,7 +208,7 @@ const _codon_access_map = let
                 codon_alphabet(Codon(nts...))
             end
             filter!(!isstop, accessible_codons)
-            M[c,i] = (accessible_codons, map(genetic_code, accessible_codons))
+            M[c, i] = (accessible_codons, map(genetic_code, accessible_codons))
         end
     end
     M
@@ -219,7 +219,7 @@ end
 Return all codons/amino-acids accessible by mutating `codon` at base `b`.
 Value returned is a `Tuple` whose first/second elements represent codons/amino-acids.
 """
-function accessible_codons(codon::T, b::Integer) where T<:Integer
+function accessible_codons(codon::T, b::Integer) where {T<:Integer}
     return get(_codon_access_map, (codon, b), (nothing, nothing))
 end
 function accessible_codons(codon::Codon, b::Integer)
@@ -231,12 +231,11 @@ function accessible_codons(codon::Codon, b::Integer)
     end
 end
 
-
 #===========================================================================#
 ########################## Amino acid degeneracies ##########################
 #===========================================================================#
 
-const _aa_degeneracy = Dict{IntType, FloatType}(
+const _aa_degeneracy = Dict{IntType,FloatType}(
     a => log(length(reverse_code(a))) for a in 1:length(aa_alphabet)
 )
 aa_degeneracy(a::Integer) = get(_aa_degeneracy, a, -Inf)

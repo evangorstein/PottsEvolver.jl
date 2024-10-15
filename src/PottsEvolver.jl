@@ -16,11 +16,9 @@ import Base: iterate, length, eltype, size
 
 import BioSequenceMappings: Alignment, to_string, hamming
 
-
 # Default types for numerical quantities
 const IntType = UInt8
 const FloatType = Float64
-
 
 include("codons.jl")
 export codon_alphabet, aa_alphabet, nt_alphabet
@@ -40,8 +38,6 @@ export mcmc_sample, SamplingParameters
 
 include("IO.jl")
 export read_graph, read_potts_graph
-
-include("tools/tools.jl")
 
 #=
 - codons.jl: alphabets and genetic code

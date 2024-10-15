@@ -10,11 +10,11 @@ end
     # This mainly tests self-consistency
     for aa in 1:length(aa_alphabet)
         @test aa in map(genetic_code, PottsEvolver.reverse_code(aa))
-        @test PottsEvolver.reverse_code_rand(aa) |> genetic_code == aa
+        @test genetic_code(PottsEvolver.reverse_code_rand(aa)) == aa
 
         aa_c = aa_alphabet(aa)
         @test aa_c in map(genetic_code, PottsEvolver.reverse_code(aa_c))
-        @test PottsEvolver.reverse_code_rand(aa_c) |> genetic_code == aa_c
+        @test genetic_code(PottsEvolver.reverse_code_rand(aa_c)) == aa_c
     end
 end
 
@@ -23,11 +23,7 @@ end
     for codon in symbols(codon_alphabet)
         @test in(prod(bases(codon)), stop_codons) == PottsEvolver.isstop(codon)
         # Codons made of only nucleotides are always valid
-        @test PottsEvolver.isvalid(codon) == (
-            all(in(['A', 'C', 'G', 'T']), bases(codon)) ||
-            all(==('-'), bases(codon))
-        )
+        @test PottsEvolver.isvalid(codon) ==
+            (all(in(['A', 'C', 'G', 'T']), bases(codon)) || all(==('-'), bases(codon)))
     end
 end
-
-
