@@ -27,7 +27,7 @@ export bases, genetic_code
 include("sequences.jl")
 export AbstractSequence, AASequence, CodonSequence
 export Alignment
-export translate
+public translate
 
 include("pottsgraph.jl")
 export PottsGraph

@@ -29,7 +29,7 @@ end
         codon_seq = CodonSequence(aas; source=:aa)
 
         @test codon_seq isa CodonSequence{Int}
-        @test translate(codon_seq).seq == codon_seq.aaseq
+        @test PottsEvolver.translate(codon_seq).seq == codon_seq.aaseq
     end
 
     @testset "From codons" begin
