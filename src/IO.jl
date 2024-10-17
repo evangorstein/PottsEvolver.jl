@@ -24,11 +24,13 @@ function read_graph_extended(file, T=FloatType)
     min_idx = Inf
     index_style = 1
     for (n, line) in enumerate(eachline(file))
-        @assert is_valid_line(line) """
-            Format problem with line $n in $file
-            Expected format `J i j a b` or `h i a`.
-            Instead $line
-            """
+        if !is_valid_line(line)
+            error("""
+                Format problem with line $n in $file
+                Expected format `J i j a b` or `h i a`. Instead $line
+                """
+            )
+        end
         if !isempty(line) && line[1] == 'h'
             i, a, val = parse_field_line(line, T)
             if i > L
@@ -42,7 +44,9 @@ function read_graph_extended(file, T=FloatType)
             end
         end
     end
-    @assert min_idx == 1 || min_idx == 0 "Issue with indexing: smallest index found is $min_idx"
+    if min_idx == 1 || min_idx == 0
+        error("Issue with indexing: smallest index found is $min_idx")
+    end
     index_style = (min_idx == 0 ? 0 : 1)
     if index_style == 0
         L += 1
@@ -105,7 +109,7 @@ function write(file::AbstractString, g::PottsGraph; sigdigits=5, index_style=1)
 end
 
 function write_graph_extended(file::AbstractString, g::PottsGraph, sigdigits, index_style)
-    @assert index_style == 0 || index_style == 1 "Got `index_style==`$(index_style)"
+    @argcheck index_style == 0 || index_style == 1 "Got `index_style==`$(index_style)"
     L, q = size(g)
     open(file, "w") do f
         for i in 1:L, j in (i + 1):L, a in 1:q, b in 1:q

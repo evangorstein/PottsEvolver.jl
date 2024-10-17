@@ -35,7 +35,7 @@ mutable struct AASequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
     function AASequence(x::AbstractVector{T}) where {T}
         q = length(aa_alphabet)
-        @assert all(<=(q), x) "AA are represented by `(1..$(q))` integers. Instead, $x"
+        @argcheck all(<=(q), x) "AA are represented by `(1..$(q))` integers. Instead, $x"
         return new{T}(x)
     end
 end
@@ -56,14 +56,14 @@ mutable struct CodonSequence{T<:Integer} <: AbstractSequence
     function CodonSequence(seq::Vector{T}, aaseq::Vector{T}) where {T}
         qc = length(codon_alphabet)
         qaa = length(aa_alphabet)
-        @assert all(<=(qc), seq) """
+        @argcheck all(<=(qc), seq) """
             Codons are represented by `(1..$(qc))` integers. Instead $seq
         """
-        @assert all(<=(qaa), aaseq) """
+        @argcheck all(<=(qaa), aaseq) """
             AA are represented by `(1..$(qaa))` integers. Instead, $aaseq
         """
         any(isstop, seq) && @warn "Sequence contains stop codon"
-        @assert all(x -> genetic_code(x[1]) == x[2], zip(seq, aaseq)) """
+        @argcheck all(x -> genetic_code(x[1]) == x[2], zip(seq, aaseq)) """
             Codon and amino acid sequences do not match. Got $seq and $aaseq
         """
         return new{T}(seq, aaseq)
@@ -130,7 +130,7 @@ end
     seq::Vector{T}
     q::T = maximum(seq)
     function NumSequence(seq::AbstractVector{T}, q) where {T}
-        @assert all(<=(q), seq) "All entries in `seq` must be smaller than $q. Instead $seq"
+        @argcheck all(<=(q), seq)
         return new{T}(seq, q)
     end
 end

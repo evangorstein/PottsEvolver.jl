@@ -36,7 +36,7 @@ function mcmc_sample_tree!(
     # checks
     tmp_check_alphabet_consistency(g, rootseq)
 
-    @assert all(n -> is_approx_integer(branch_length(n)), nodes(tree; skiproot=true)) """
+    @argcheck all(n -> is_approx_integer(branch_length(n)), nodes(tree; skiproot=true)) """
         Branches of tree should be integers.\
         Instead $(map(branch_length, nodes(tree; skiproot=true)))
     """

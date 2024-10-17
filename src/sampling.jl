@@ -30,11 +30,11 @@ fraction_gap_step::Float64 = 0.9
     burnin::Int = 5 * Teq
     fraction_gap_step::Float64 = 0.9
     function SamplingParameters(step_type, step_meaning, Teq, burnin, fraction_gap_step)
-        @assert step_meaning in VALID_STEP_MEANINGS """
+        @argcheck step_meaning in VALID_STEP_MEANINGS """
                 `step_meaning` should be in $VALID_STEP_MEANINGS.
                 Instead $(step_meaning).
             """
-        @assert step_type in VALID_STEP_TYPES """
+        @argcheck step_type in VALID_STEP_TYPES """
                 `step_type` should be in $VALID_STEP_TYPES.
                 Instead $(step_type).
             """
@@ -80,8 +80,8 @@ function mcmc_sample(
     end
 
     @unpack Teq, burnin = params
-    @assert Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(Teq)"
-    @assert M > 0 "Number of samples `M` must be >0. Instead $M"
+    @argcheck Teq > 0 "Number of steps between samples `Teq` should be >0. Instead $(Teq)"
+    @argcheck M > 0 "Number of samples `M` must be >0. Instead $M"
     tmp_check_alphabet_consistency(g, s0)
     verbose > 0 && @info """
           Sampling $M sequences using the following settings:
@@ -411,13 +411,13 @@ Try to guess a reasonable init sequence from `s0`:
 function get_init_sequence(s0::Symbol, g::PottsGraph; kwargs...)
     (; L, q) = size(g)
     return if s0 == :random_codon
-        @assert q == length(aa_alphabet) """
+        @argcheck q == length(aa_alphabet) """
             For sampling from `CodonSequence`, graph alphabet size must be $(length(aa_alphabet)).
             Instead $q.
             """
         CodonSequence(L)
     elseif s0 == :random_aa
-        @assert q == length(aa_alphabet) """
+        @argcheck q == length(aa_alphabet) """
             For sampling from `AASequence`, graph alphabet size must be $(length(aa_alphabet)).
             Instead $q.
             """

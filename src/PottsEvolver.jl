@@ -1,5 +1,6 @@
 module PottsEvolver
 
+using ArgCheck
 using BioSequenceMappings
 using ProgressMeter
 using Random

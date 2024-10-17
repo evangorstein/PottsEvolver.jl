@@ -2,8 +2,8 @@ using BioSequenceMappings
 
 @testset "SamplingParameters" begin
     @test SamplingParameters(; Teq=5) isa Any
-    @test_throws AssertionError SamplingParameters(; Teq=5, step_type=:dubstep)
-    @test_throws AssertionError SamplingParameters(; Teq=5, step_meaning=:olive_tree)
+    @test_throws ArgumentError SamplingParameters(; Teq=5, step_type=:dubstep)
+    @test_throws ArgumentError SamplingParameters(; Teq=5, step_meaning=:olive_tree)
 end
 
 @testset "Accepted steps" begin

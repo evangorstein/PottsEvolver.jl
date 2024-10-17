@@ -12,13 +12,13 @@
     β::T = 1.0
     alphabet::Union{Nothing,Alphabet{Char,<:Integer}} = aa_alphabet
     function PottsGraph(J::Array{T,4}, h::Array{T,2}, β, alphabet) where {T}
-        @assert size(h, 1) == size(J, 1) == size(J, 2) """
+        @argcheck size(h, 1) == size(J, 1) == size(J, 2) """
             Inconsistent sizes for `J` and `h`: $(size(J)) - $(size(h))
             """
-        @assert size(h, 2) == size(J, 3) == size(J, 4) """
+        @argcheck size(h, 2) == size(J, 3) == size(J, 4) """
             Inconsistent sizes for `J` and `h`: $(size(J)) - $(size(h))
             """
-        @assert isnothing(alphabet) || size(h, 1) == length(alphabet) """
+        @argcheck isnothing(alphabet) || size(h, 1) == length(alphabet) """
             Inconsistent alphabet size: $(length(alphabet)) - h: $(size(h))
             """
         return new{T}(J, h, β, alphabet)
