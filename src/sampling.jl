@@ -399,7 +399,7 @@ end
 #======================================================#
 
 """
-    get_init_sequence(s0, g::PottsGraph)
+    get_init_sequence(s0, g::PottsGraph; kwargs...)
 
 Try to guess a reasonable init sequence from `s0`:
 - if `s0::AbstractSequence`, use it;

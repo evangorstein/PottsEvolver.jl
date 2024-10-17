@@ -197,7 +197,10 @@ end
     hamming(x::AbstractSequence, y::AbstractSequence)
     hamming(x::CodonSequence, y::CodonSequence; source=:codon, kwargs...)
 """
-function BioSequenceMappings.hamming(x::AbstractSequence, y::AbstractSequence; kwargs...)
+function BioSequenceMappings.hamming(
+    x::AbstractSequence, y::AbstractSequence; source=nothing, kwargs...
+)
+    # source kwarg to allow blind use of hamming
     return hamming(x.seq, y.seq; kwargs...)
 end
 function BioSequenceMappings.hamming(
