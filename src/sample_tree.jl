@@ -1,6 +1,6 @@
 # just a wrapper to have <:TreeNodeData
 @kwdef struct Sequence{T<:AbstractSequence} <: TreeNodeData
-    seq::T
+    seq::T = T(0)
 end
 
 Base.copy(S::Sequence) = Sequence(copy(S.seq))
@@ -68,9 +68,25 @@ end
 
 is_approx_integer(x) = isapprox(x, round(x), rtol=1e-8)
 
-function prepare_tree!(tree::Tree, rootseq::AbstractSequence)
-    round_tree_branch_length!(tree)
-    set_root_seq!(tree)
+function prepare_tree(tree::Tree, rootseq::S) where S <: AbstractSequence
+    # convert to right type -- this makes a copy
+    tree_copy = convert(Tree{Sequence{S}}, tree)
+    # set root sequence
+    data!(root(tree_copy), Sequence(copy(rootseq)))
+    #
+    round_tree_branch_length!(tree_copy)
+    return tree_copy
+end
+
+function round_tree_branch_length!(tree::Tree; rtol=1e-3)
+    for node in nodes(tree; skiproot=true)
+        x = branch_length(node)
+        if ismissing(x) || !isapprox(x, round(Int, x); rtol)
+            error("Expected tree with (approximately) integer branch lengths. Instead $x")
+        else
+            branch_length!(node, round(Int, x))
+        end
+    end
     return tree
 end
-prepare_tree(tree, rootseq) = prepare_tree!(copy(tree), rootseq)
+

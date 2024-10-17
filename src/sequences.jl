@@ -42,6 +42,7 @@ end
 
 Base.copy(s::AASequence) = AASequence(copy(s.seq))
 AASequence(L::Integer; T=IntType) = AASequence(rand(T(1):T(length(aa_alphabet)), L))
+AASequence{T}(L::Integer) where T<:Integer = AASequence(L; T)
 
 _sequence_alphabet(::Type{<:AASequence}; kwargs...) = aa_alphabet
 
@@ -101,6 +102,7 @@ Underlying integer type is `T`.
 function CodonSequence(L::Int; source=:aa, T=IntType)
     return CodonSequence(rand(T(1):T(length(aa_alphabet)), L); source)
 end
+CodonSequence{T}(L::Int; kwargs...) where T<:Integer = CodonSequence(L; T, kwargs...)
 
 ## Methods
 

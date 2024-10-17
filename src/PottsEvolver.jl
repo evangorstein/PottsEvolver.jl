@@ -36,6 +36,8 @@ export energy
 include("sampling.jl")
 export mcmc_sample, SamplingParameters
 
+include("sample_tree.jl")
+
 include("IO.jl")
 export read_graph, read_potts_graph
 
