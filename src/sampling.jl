@@ -85,6 +85,7 @@ function mcmc_sample(
     tmp_check_alphabet_consistency(g, s0)
     verbose > 0 && @info """
           Sampling $M sequences using the following settings:
+          - Type of sequence = $(supertype(s0))
           - Steps between samples = $(Teq)
           - burnin = $(burnin)
           - Step style = $(params.step_type)
@@ -92,8 +93,6 @@ function mcmc_sample(
           - fraction of gap steps (if codon) = $(params.fraction_gap_step)
       """
     verbose > 0 && @info "Initial sequence: $s0"
-
-    L, q = size(g)
 
     # vector for return value
     conf = copy(s0)
@@ -127,21 +126,16 @@ function mcmc_sample(
         )
         # storing the result in S
         S[m] = copy(conf)
-        tvals[m] = tvals[m - 1] + Teq
+        tvals[m] = tvals[m-1] + Teq
         # misc.
         push!(
-            log_info, (proposed=proposed, performed=performed, ratio=performed / proposed)
+            log_info, (proposed=proposed, performed=performed, ratio=performed/proposed)
         )
         next!(progress; showvalues=[("steps", m + 1), ("total", M)])
     end
     verbose > 0 && @info "Sampling done in $time seconds"
 
-    sequences = if alignment_output
-        A = Alignment(S; names=tvals)
-        translate_output ? genetic_code(A) : A
-    else
-        S
-    end
+    sequences = fmt_output(S, alignment_output, translate_output; names=tvals)
     return (; sequences, tvals, info=log_info, params=return_params(params, s0))
 end
 """
@@ -149,16 +143,13 @@ end
         g::PottsGraph, M::Integer, params::SamplingParameters; init=:random_num, kwargs...)
     )
 
-Secondary form: choose the initial sequence based on `init` and `g`.
+Sample `g` for `M` steps, using parameters in `params`.
+Choose the initial sequence based on `init` and `g`.
 See `PottsEvolver.get_init_sequence` for more information.
 """
 function mcmc_sample(
-    g::PottsGraph,
-    M::Integer,
-    params::SamplingParameters;
-    init=:random_num,
-    verbose=0,
-    kwargs...,
+    g::PottsGraph, M::Integer, params::SamplingParameters;
+    init=:random_num, verbose=0, kwargs...
 )
     s0 = get_init_sequence(init, g; verbose)
     return mcmc_sample(g, M, s0, params; verbose, kwargs...)
@@ -172,18 +163,15 @@ end
 
 Perform `num_steps` MCMC steps starting from sequence `s` and using graph `g`.
 The step type (`:gibbs`, `:metropolis`) and the interpretation of `num_steps`
-    (`:accepted`, `:proposed`) is set using `p` (see `?SamplingParameters`).
+    (`:changed`, `:accepted`, `:proposed`) is set using `p` (see `?SamplingParameters`).
 Modifies the input sequence `s` and returns it.
 """
 function mcmc_steps!(
-    s::AbstractSequence,
-    g::PottsGraph,
-    num_steps::Integer,
-    p::SamplingParameters;
-    rng=Random.GLOBAL_RNG,
-    gibbs_holder=get_gibbs_holder(s),
-    verbose=false,
+    sequence::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
+    rng=Random.GLOBAL_RNG, gibbs_holder=get_gibbs_holder(sequence), verbose=false,
 )
+    @argcheck length(sequence) > 0
+
     step_func! = if p.step_type == :gibbs
         gibbs_step!
     elseif p.step_type == :metropolis
@@ -196,7 +184,7 @@ function mcmc_steps!(
     accepted = 0
     if p.step_meaning == :proposed
         for _ in 1:num_steps
-            step_func!(s, g, p, gibbs_holder; rng)
+            step_func!(sequence, g, p, gibbs_holder; rng)
             proposed += 1
             accepted += 1
         end
@@ -204,7 +192,7 @@ function mcmc_steps!(
         min_acceptance_rate = 0.001
         max_tries = num_steps / min_acceptance_rate
         while accepted < num_steps && proposed < max_tries
-            step_result = step_func!(s, g, p, gibbs_holder; rng)
+            step_result = step_func!(sequence, g, p, gibbs_holder; rng)
             if p.step_meaning == :accepted && step_result.accepted
                 accepted += 1
             elseif p.step_meaning == :changed && step_result.changed
@@ -217,7 +205,7 @@ function mcmc_steps!(
             """
     end
 
-    return s, proposed, accepted
+    return sequence, proposed, accepted
 end
 
 #=
@@ -402,7 +390,7 @@ end
     get_init_sequence(s0, g::PottsGraph; kwargs...)
 
 Try to guess a reasonable init sequence from `s0`:
-- if `s0::AbstractSequence`, use it;
+- if `s0::AbstractSequence`, use a **copy** of it;
 - if `s0::Symbol`, then it should be among `[:random_codon, :random_aa, :random_num]`;
   a random sequence of the corresponding type is created, using the length of `g`;
 - if `s0` is a vector of integers, convert it to `AASequence`, `CodonSequence` or `NumSequence`;
@@ -430,7 +418,7 @@ function get_init_sequence(s0::Symbol, g::PottsGraph; kwargs...)
         )
     end
 end
-get_init_sequence(s0::AbstractSequence, g; kwargs...) = s0
+get_init_sequence(s0::AbstractSequence, g; kwargs...) = copy(s0)
 function get_init_sequence(s0::AbstractVector{<:Integer}, g; verbose=true)
     return if g.alphabet == aa_alphabet
         if maximum(s0) <= 21
@@ -448,6 +436,32 @@ end
 #=====================#
 ######## Utils ########
 #=====================#
+
+function fmt_output(
+    sequences::AbstractVector{T}, alignment, translate;
+    names=nothing, dict=false,
+) where T<:CodonSequence
+    return if alignment
+        A = Alignment(sequences; names)
+        translate ? genetic_code(A) : A
+    elseif dict
+        Dict{String, T}(name => seq for (name, seq) in zip(names, sequences))
+    else
+        sequences
+    end
+end
+function fmt_output(
+    sequences::AbstractVector{T}, alignment, translate;
+    names=nothing, dict=false,
+) where T<:AbstractSequence
+    return if alignment
+        Alignment(sequences; names)
+    elseif dict
+        Dict{String, T}(name => seq for (name, seq) in zip(names, sequences))
+    else
+        sequences
+    end
+end
 
 """
     pick_aa_mutation(s::CodonSequence)

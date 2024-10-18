@@ -19,4 +19,8 @@ using Test
     @testset "Sampling" begin
         include("sampling/test.jl")
     end
+
+    @testset "Sampling on tree" begin
+        include("sampling_tree/test.jl")
+    end
 end

@@ -36,8 +36,10 @@ export energy
 
 include("sampling.jl")
 export mcmc_sample, SamplingParameters
+public get_init_sequence
 
 include("sample_tree.jl")
+public mcmc_sample_tree, pernode_alignment
 
 include("IO.jl")
 export read_graph, read_potts_graph

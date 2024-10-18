@@ -31,6 +31,12 @@ Methods that a subtype should implement
 ############# AASequence #############
 #====================================#
 
+"""
+    mutable struct AASequence{T<:Integer} <: AbstractSequence
+
+Field: `seq::Vector{T}`.
+Wrapper around a vector of integers, with implied alphabet `PottsEvolver.aa_alphabet`.
+"""
 mutable struct AASequence{T<:Integer} <: AbstractSequence
     seq::Vector{T}
     function AASequence(x::AbstractVector{T}) where {T}
@@ -41,6 +47,11 @@ mutable struct AASequence{T<:Integer} <: AbstractSequence
 end
 
 Base.copy(s::AASequence) = AASequence(copy(s.seq))
+"""
+    AASequence(L; T)
+
+Return a random `AASequence{T}` of length `L`.
+"""
 AASequence(L::Integer; T=IntType) = AASequence(rand(T(1):T(length(aa_alphabet)), L))
 AASequence{T}(L::Integer) where T<:Integer = AASequence(L; T)
 
@@ -96,7 +107,10 @@ end
 """
     CodonSequence(L::Int; source=:aa, T)
 
-Sample `L` states at random of the type of `source` (`:aa` or `:codon`).
+Sample `L` states at random of the type of `source` (`:aa` or `:codon`):
+    - if `:codon`, sample codons at random
+    - if `:aa`, sample amino acids at random and reverse translate them randomly to matching codons
+
 Underlying integer type is `T`.
 """
 function CodonSequence(L::Int; source=:aa, T=IntType)
@@ -142,6 +156,23 @@ Construct a random sequence of integers of length `L` using integers `1:q`.
 The integer type can be set using `T`.
 """
 NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence(rand(T(1):T(q), L), T(q))
+NumSequence{T}(L::Integer, q::Integer) where T<:Integer = NumSequence(L, q; T)
+function NumSequence(L::Integer; kwargs...)
+    if L != 0
+        msg = """
+        Must provide a number of states `q` to build a random numerical sequence:\
+        `NumSequence(L, q)`. Instead got `NumSequence($L)`.
+        """
+        throw(ArgumentError(msg))
+    end
+    @warn """
+        Initializer of empty NumSequence, without knowledge of `q`.
+        Needed when converting a tree to `Tree{Sequence{NumSequence}}`, since `T(0)` called.
+        Ideally I should change this. Should be `NumSequence{q}`, would make things easier.
+    """
+    return NumSequence(0, 1)
+end
+NumSequence{T}(L::Integer) where T<:Integer = NumSequence(L; T)
 
 Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
 
