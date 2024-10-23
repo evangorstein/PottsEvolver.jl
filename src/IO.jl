@@ -44,8 +44,8 @@ function read_graph_extended(file, T=FloatType)
             end
         end
     end
-    if min_idx == 1 || min_idx == 0
-        error("Issue with indexing: smallest index found is $min_idx")
+    if min_idx != 1 && min_idx != 0
+        error("Issue with indexing in $file: smallest index found is $min_idx")
     end
     index_style = (min_idx == 0 ? 0 : 1)
     if index_style == 0
@@ -53,7 +53,7 @@ function read_graph_extended(file, T=FloatType)
         q += 1
     end
 
-    g = PottsGraph(L, q)
+    g = PottsGraph(L, q, T)
     for line in eachline(file)
         if line[1] == 'J'
             i, j, a, b, val = parse_coupling_line(line, T)

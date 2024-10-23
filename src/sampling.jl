@@ -30,6 +30,12 @@ fraction_gap_step::Float64 = 0.9
     burnin::Int = 5 * Teq
     fraction_gap_step::Float64 = 0.9
     function SamplingParameters(step_type, step_meaning, Teq, burnin, fraction_gap_step)
+        step_meaning = try
+            Symbol(step_meaning)
+        catch err
+            @error "Invalid `step_meaning` $step_meaning"
+            throw(err)
+        end
         @argcheck step_meaning in VALID_STEP_MEANINGS """
                 `step_meaning` should be in $VALID_STEP_MEANINGS.
                 Instead $(step_meaning).
@@ -296,7 +302,7 @@ function gap_metropolis_step!(
     aa_ref = s.aaseq[i]
     # di Bari et. al.
     β = 1 / n_aa_codons # aa to gap transition
-    return if isgap(codon_ref, codon_alphabet)
+    if codon_ref == gap_codon_index
         # Pick any non gap codon and try to mutate to it
         codon_new = rand(coding_codons)
         aa_new = genetic_code(codon_new)
@@ -308,7 +314,7 @@ function gap_metropolis_step!(
             end
         end
 
-        _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
+        return _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
     else
         # Try to replace s[i] by the gap codon
         if rand() < 1 - β
@@ -327,7 +333,7 @@ function gap_metropolis_step!(
                 end
             end
 
-            _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
+            return _metropolis_step!(s, ΔE, i, codon_new, aa_new, aa_ref)
         end
     end
 end
