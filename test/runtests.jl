@@ -1,7 +1,9 @@
+using Test
+
 using Accessors
 using StatsBase
 using PottsEvolver
-using Test
+using TreeTools
 
 @testset "PottsEvolver.jl" begin
     @testset "Codons" begin

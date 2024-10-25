@@ -78,10 +78,14 @@ function mcmc_sample_tree(
     # If burnin, then equilibrate the picked sequence first
     @unpack burnin = params
     if burnin > 0
-        verbose > 0 && println("Initializing with $(burnin) burnin iterations... ")
+        if verbose > 0
+            @info "Equilibrating root sequence with $(burnin) burnin iterations... "
+        end
         gibbs_holder = get_gibbs_holder(s0)
-        mcmc_steps!(s0, g, burnin, params; gibbs_holder, kwargs...)
+        time = @elapsed mcmc_steps!(s0, g, burnin, params; gibbs_holder, kwargs...)
+        verbose > 0 && @info "done in $time seconds"
     end
+
     # Sample and return the tree
     return mcmc_sample_tree(g, tree, s0, params; verbose, kwargs...)
 end
@@ -116,20 +120,21 @@ function mcmc_sample_tree_main!(
     """
     tmp_check_alphabet_consistency(g, data(root(tree)).seq)
 
-    # logging
+    # logging & warnings
     if verbose > 0
+        M = length(leaves(tree))
+        s0 = data(root(tree)).seq
         @info """
-            Sampling $M sequences using the following settings:
-                - Type of sequence = $(supertype(s0))
-                - Steps between samples = $(Teq)
-                - burnin = $(burnin)
+            Sampling sequences of tree with $M leaves using the following settings:
+                - Type of sequence = $(supertype(typeof(s0)))
                 - Step style = $(params.step_type)
-                - Branch length style = $(params.step_meaning)
+                - Step meaning = $(params.step_meaning)
                 - fraction of gap steps (if codon) = $(params.fraction_gap_step)
             """
     end
-    if params.Teq > 0 || params.burnin > 0
-        @warn "Teq and burnin values from parameters will be ignored" params.Teq params.burnin
+    @unpack Teq, burnin = params
+    if Teq > 0 || burnin > 0
+        @warn "`Teq` and `burnin` fields in parameters will be ignored" Teq burnin
     end
 
     # some settings

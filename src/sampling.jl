@@ -91,11 +91,11 @@ function mcmc_sample(
     tmp_check_alphabet_consistency(g, s0)
     verbose > 0 && @info """
           Sampling $M sequences using the following settings:
-          - Type of sequence = $(supertype(s0))
+          - Type of sequence = $(supertype(typeof(s0)))
           - Steps between samples = $(Teq)
           - burnin = $(burnin)
           - Step style = $(params.step_type)
-          - Branch length style = $(params.step_meaning)
+          - Step meaning = $(params.step_meaning)
           - fraction of gap steps (if codon) = $(params.fraction_gap_step)
       """
     verbose > 0 && @info "Initial sequence: $s0"
@@ -206,7 +206,7 @@ function mcmc_steps!(
             end
             proposed += 1
         end
-        proposed >= max_tries && @warn """
+        proposed >= max_tries && max_tries > 0 && @warn """
             $max_tries steps attempted with only $accepted accepted. Giving up.
             """
     end

@@ -8,7 +8,8 @@ using StatsBase
 using TreeTools
 using UnPack
 
-export hamming, symbols # from BioSequenceMappings
+export read_fasta, symbols # from BioSequenceMappings
+export read_tree # from TreeTools
 
 import Base: ==, hash
 import Base: copy, show, write
@@ -33,6 +34,7 @@ public translate
 include("pottsgraph.jl")
 export PottsGraph
 export energy
+public set_gauge!
 
 include("sampling.jl")
 export mcmc_sample, SamplingParameters
