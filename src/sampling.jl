@@ -176,7 +176,9 @@ function mcmc_steps!(
     sequence::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
     rng=Random.GLOBAL_RNG, gibbs_holder=get_gibbs_holder(sequence), verbose=false,
 )
-    @argcheck length(sequence) > 0
+    @argcheck length(sequence) == size(g).L """
+    Size of sequence and model do not match: $(length(sequence)) and $(size(g).L)
+    """
 
     step_func! = if p.step_type == :gibbs
         gibbs_step!

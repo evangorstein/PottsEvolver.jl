@@ -13,5 +13,6 @@ docs/build/
 docs/site/
 temp/*
 scrap/*
-example/*
+example/_scrap
+example/Manifest.toml
 example/test_notebooks

@@ -17,6 +17,7 @@ import Base: getindex, setindex!
 import Base: iterate, length, eltype, size
 
 import BioSequenceMappings: Alignment, to_string, hamming
+export Alignment, Alphabet
 
 # Default types for numerical quantities
 const IntType = UInt8
@@ -28,7 +29,6 @@ export bases, genetic_code
 
 include("sequences.jl")
 export AbstractSequence, AASequence, CodonSequence
-export Alignment
 public translate
 
 include("pottsgraph.jl")
