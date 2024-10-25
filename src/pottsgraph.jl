@@ -169,7 +169,7 @@ function energy(s::AbstractVector{<:Integer}, g::PottsGraph)
             E += g.J[s[i], s[j], i, j]
         end
     end
-    return E
+    return -E
 end
 energy(s::AbstractSequence, g) = energy(sequence(s), g)
 energy(s::CodonSequence, g) = energy(s.aaseq, g)
