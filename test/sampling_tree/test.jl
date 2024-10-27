@@ -32,7 +32,7 @@ end
     tree = PottsEvolver.prepare_tree(balanced_binary_tree(8, 1.0), rootseq)
     params = SamplingParameters(step_meaning=:changed, Teq=5, burnin=100) # Teq & burnin should not matter!
 
-    tree = @test_warn r"`Teq` and `burnin`" PottsEvolver.mcmc_sample_tree_main!(g, tree, params)
+    tree = @test_warn r"`Teq` and `burnin`" PottsEvolver.mcmc_sample_tree!(g, tree, params)
     for node in nodes(tree; skiproot=true)
         nseq = data(node).seq
         aseq = data(ancestor(node)).seq
@@ -65,7 +65,7 @@ end
 
     # providing init kwarg and no burnin
     params = SamplingParameters(step_meaning=:accepted, Teq=0, burnin=0) # burnin should not matter!
-    sampled_tree = @test_nowarn PottsEvolver.mcmc_sample_tree(
+    sampled_tree = @test_logs min_level=Logging.Warn  PottsEvolver.mcmc_sample_tree(
         g, tree, params; init = :random_aa
     )
 end

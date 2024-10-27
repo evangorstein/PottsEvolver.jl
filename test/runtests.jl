@@ -3,6 +3,7 @@ using PottsEvolver
 
 using Accessors
 using BioSequenceMappings
+using Logging
 using StatsBase
 using TreeTools
 

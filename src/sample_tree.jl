@@ -6,58 +6,6 @@ end
 Base.copy(S::Sequence) = Sequence(copy(S.seq))
 
 """
-    mcmc_sample(g, tree, M=1, params; alignment_output, translate_output, kwargs...)
-
-Sample `g` along branches of `tree`.
-Repeat the process `M` times, returning an array of named tuples of the form
-  `(; tree, leaf_sequences, internal_sequences)`.
-If `M` is omitted, the output is just a named tuple (no array).
-
-The sequence to be used as the root should be provided using the `init` kwarg,
-  see `?PottsEvolver.get_init_sequence`.
-
-If `alignment_output`, the sequences will be wrapped into an `Alignment` strucutre.
-Otherwise, they are in a dictionary indexed by node label.
-If `translate_output` and if the root sequence was a `CodonSequence`, the output alignment
-will contain the amino acid sequence and not the codons.
-
-## Warning
-The `Teq` field of `params` is not used in the sampling.
-However, the `burnin` field will be used to set the root sequence: `burnin` mcmc steps
-will be performed starting from the input sequence, and the result is set at the root.
-If you want a precise root sequence to be used, set `burnin=0` in `params`.
-"""
-function mcmc_sample(
-    g, tree, params;
-    alignment_output=true, translate_output=true, kwargs...
-)
-    # one sequence per node --> two alignments as output (+ tree)
-    sampled_tree = mcmc_sample_tree(g, tree, params; kwargs...)
-    leaf_sequences = map(n -> data(n).seq, leaves(sampled_tree))
-    internal_sequences = map(n -> data(n).seq, internals(sampled_tree))
-
-    return (;
-        tree = sampled_tree,
-        leaf_sequences = fmt_output(
-            leaf_sequences, alignment_output, translate_output;
-            names = map(label, leaves(sampled_tree)), dict=true,
-        ),
-        internal_sequences = fmt_output(
-            internal_sequences, alignment_output, translate_output;
-            names = map(label, internals(sampled_tree)), dict=true,
-        )
-    )
-end
-function mcmc_sample(g, tree,  M::Int, params; kwargs...)
-    # M sequences per node --> [(tree, leaf, internals)] of length `M`
-    return [mcmc_sample(g, tree, params; kwargs...) for _ in 1:M]
-end
-
-
-#=
-Functions below just return a tree.
-=#
-"""
     mcmc_sample_tree(g::PottsGraph, tree::Tree, rootseq::AbstractSequence, params; kwargs...)
     mcmc_sample_tree(g::PottsGraph, tree::Tree, params::SamplingParameters; init, kwargs...)
 
@@ -71,47 +19,44 @@ Return a sampled copy `tree`.
 """
 function mcmc_sample_tree(
     g::PottsGraph, tree::Tree, params::SamplingParameters;
-    init=:random_num, verbose=0, kwargs...,
+    init=:random_num, kwargs...,
 )
     # Pick initial sequence
-    s0 = get_init_sequence(init, g; verbose)
+    s0 = get_init_sequence(init, g)
     # If burnin, then equilibrate the picked sequence first
     @unpack burnin = params
     if burnin > 0
-        if verbose > 0
-            @info "Equilibrating root sequence with $(burnin) burnin iterations... "
-        end
+        @info "Equilibrating root sequence with $(burnin) burnin iterations... "
         gibbs_holder = get_gibbs_holder(s0)
         time = @elapsed mcmc_steps!(s0, g, burnin, params; gibbs_holder, kwargs...)
-        verbose > 0 && @info "done in $time seconds"
+        @info "done in $time seconds"
     end
 
     # Sample and return the tree
-    return mcmc_sample_tree(g, tree, s0, params; verbose, kwargs...)
+    return mcmc_sample_tree(g, tree, s0, params; kwargs...)
 end
 function mcmc_sample_tree(
     g::PottsGraph, tree::Tree, rootseq::AbstractSequence, params::SamplingParameters;
     kwargs...
 )
     tree_copy = prepare_tree(tree, rootseq)
-    return mcmc_sample_tree_main!(g, tree_copy, params; kwargs...) # returns tree_copy
+    return mcmc_sample_tree!(g, tree_copy, params; kwargs...) # returns tree_copy
 end
 """
     mcmc_sample_main!(
         g::PottsGraph, tree::Tree{<:Sequence{S}}, params::SamplingParameters;
-        rng=Random.GLOBAL_RNG, verbose=0,
+        rng=Random.GLOBAL_RNG,
     ) where S <: AbstractSequence
 
 Sample one sequence per node of `tree`.
 Expects that `tree` is already "ready": it has a non empty root sequence, and branch
 lengths are integers.
 """
-function mcmc_sample_tree_main!(
+function mcmc_sample_tree!(
     g::PottsGraph,
     tree::Tree{<:Sequence{S}},
     params::SamplingParameters;
     rng=Random.GLOBAL_RNG,
-    verbose=0,
 ) where {S<:AbstractSequence}
     # checks
     @argcheck all(n -> is_approx_integer(branch_length(n)), nodes(tree; skiproot=true)) """
@@ -121,17 +66,18 @@ function mcmc_sample_tree_main!(
     tmp_check_alphabet_consistency(g, data(root(tree)).seq)
 
     # logging & warnings
-    if verbose > 0
+    let
         M = length(leaves(tree))
         s0 = data(root(tree)).seq
         @info """
-            Sampling sequences of tree with $M leaves using the following settings:
-                - Type of sequence = $(supertype(typeof(s0)))
-                - Step style = $(params.step_type)
-                - Step meaning = $(params.step_meaning)
-                - fraction of gap steps (if codon) = $(params.fraction_gap_step)
-            """
+        Sampling sequences of tree with $M leaves using the following settings:
+            - Type of sequence = $(supertype(typeof(s0)))
+            - Step style = $(params.step_type)
+            - Step meaning = $(params.step_meaning)
+            - fraction of gap steps (if codon) = $(params.fraction_gap_step)
+        """
     end
+
     @unpack Teq, burnin = params
     if Teq > 0 || burnin > 0
         @warn "`Teq` and `burnin` fields in parameters will be ignored" Teq burnin
@@ -141,8 +87,8 @@ function mcmc_sample_tree_main!(
     gibbs_holder = get_gibbs_holder(data(root(tree)).seq)
 
     # Sampling
-    time = @elapsed sample_children!(root(tree), g, params, gibbs_holder; rng, verbose)
-    verbose > 0 && @info "Sampling done in $time seconds"
+    time = @elapsed sample_children!(root(tree), g, params, gibbs_holder; rng)
+    @info "Sampling done in $time seconds"
 
     return tree
 end

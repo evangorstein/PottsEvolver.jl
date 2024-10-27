@@ -2,6 +2,8 @@ module PottsEvolver
 
 using ArgCheck
 using BioSequenceMappings
+using Logging
+using LoggingExtras
 using ProgressMeter
 using Random
 using StatsBase
@@ -36,12 +38,18 @@ export PottsGraph
 export energy
 public set_gauge!
 
-include("sampling.jl")
-export mcmc_sample, SamplingParameters
-public get_init_sequence
+include("sampling_core.jl")
+public mcmc_steps!
+
+include("sampling_chain.jl")
+public mcmc_sample_chain
 
 include("sample_tree.jl")
 public mcmc_sample_tree, pernode_alignment
+
+include("sampling.jl")
+export mcmc_sample, SamplingParameters
+public get_init_sequence
 
 include("IO.jl")
 export read_graph, read_potts_graph
