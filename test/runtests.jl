@@ -1,8 +1,9 @@
 using Test
+using PottsEvolver
 
 using Accessors
+using BioSequenceMappings
 using StatsBase
-using PottsEvolver
 using TreeTools
 
 @testset "PottsEvolver.jl" begin

@@ -1,5 +1,3 @@
-using BioSequenceMappings
-
 @testset "SamplingParameters" begin
     @test SamplingParameters(; Teq=5) isa Any
     @test_throws ArgumentError SamplingParameters(; Teq=5, step_type=:dubstep)
@@ -24,7 +22,7 @@ end
 end
 
 @testset "Output values" begin
-    L, q, M = (5, 21, 2)
+    L, q, M = (4, 21, 2)
     g = PottsGraph(L, q; init=:rand)
     @test g.alphabet == aa_alphabet # used q = 21
 
@@ -41,7 +39,7 @@ end
         x.alphabet = nothing
         x
     end
-    S, _ = mcmc_sample(g_noalphabet, M, params; init=[1, 2, 3], alignment_output=false)
+    S, _ = mcmc_sample(g_noalphabet, M, params; init=[1, 2, 3, 4], alignment_output=false)
     @test S isa AbstractVector{<:PottsEvolver.NumSequence}
 
     # because g has an alphabet that is not the default aa
@@ -50,7 +48,7 @@ end
         x.alphabet = Alphabet("ACDEFGHIKLMNPQRSTVWY-")
         x
     end
-    S, _ = mcmc_sample(g_strangealphabet, M, params; init=[1, 2, 3], alignment_output=false)
+    S, _ = mcmc_sample(g_strangealphabet, M, params; init=[1, 2, 3, 4], alignment_output=false)
     @test S isa AbstractVector{<:PottsEvolver.NumSequence}
 
     ## AA sequence
