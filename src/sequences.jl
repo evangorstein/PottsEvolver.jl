@@ -199,7 +199,7 @@ function Alignment(
         error("Sequences do not have the same length")
     end
     if !isnothing(names) && length(names) != length(S)
-        error("Got $(length(names)) but $(length(S)) sequences.")
+        error("Got $(length(names)) names but $(length(S)) sequences.")
     end
 
     data = hcat([sequence(s; as_codons) for s in S]...)

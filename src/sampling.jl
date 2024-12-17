@@ -178,15 +178,27 @@ end
 #=============================================#
 
 function get_logger(verbose, logfile, logfile_verbose)
-    return if verbose < 0
-        MinLevelLogger(ConsoleLogger(), Logging.Error)
-    elseif verbose == 0
-        MinLevelLogger(ConsoleLogger(), Logging.Warn)
-    elseif verbose == 1
-        MinLevelLogger(ConsoleLogger(), Logging.Info)
-    else
-        MinLevelLogger(ConsoleLogger(), Logging.Debug)
+    function min_lvl(val)
+        return if val < 0
+            Logging.Error
+        elseif val == 0
+            Logging.Warn
+        elseif val == 1
+            Logging.Info
+        else
+            Logging.Debug
+        end
     end
+    loggers = []
+    # console logger
+    console = MinLevelLogger(ConsoleLogger(), min_lvl(verbose))
+    push!(loggers, console)
+    # file logger
+    file = if !isnothing(logfile) && !isempty(logfile)
+        push!(loggers, MinLevelLogger(FileLogger(logfile), min_lvl(logfile_verbose)))
+    end
+
+    return TeeLogger(loggers...)
 end
 
 #=====================#
