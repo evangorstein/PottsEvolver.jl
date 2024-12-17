@@ -10,10 +10,10 @@
 
 Sample `g` for `M` steps starting from `s0`, using parameters in `params`.
 Return value: named tuple with fields
-    - `sequences`: alignment (or vector) of sequences
-    - `tvals`: vector with the number of steps at each sample
-    - `info`: information about the run
-    - `params`: parameters of the run.
+- `sequences`: alignment (or vector) of sequences
+- `tvals`: vector with the number of steps at each sample
+- `info`: information about the run
+- `params`: parameters of the run.
 
 
 *Note*: this function is not very efficient if `M` is small.
@@ -68,6 +68,7 @@ Sample `g` along branches of `tree`.
 Repeat the process `M` times, returning an array of named tuples of the form
   `(; tree, leaf_sequences, internal_sequences)`.
 If `M` is omitted, the output is just a named tuple (no array).
+Sequences in `leaf_sequences` and `internal_sequences` are sorted in post-order traversal.
 
 The sequence to be used as the root should be provided using the `init` kwarg,
   see `?PottsEvolver.get_init_sequence`.
@@ -97,19 +98,22 @@ function mcmc_sample(
     # Actual MCMC
         sampled_tree = mcmc_sample_tree(g, tree, params; kwargs...)
 
+        leaf_names = map(label, traversal(sampled_tree, :postorder; internals=false))
+        internal_names = map(label, traversal(sampled_tree, :postorder; leaves=false))
+
         # Constructing output
-        leaf_sequences = map(n -> data(n).seq, leaves(sampled_tree))
-        internal_sequences = map(n -> data(n).seq, internals(sampled_tree))
+        leaf_sequences = map(n -> data(sampled_tree[n]).seq, leaf_names)
+        internal_sequences = map(n -> data(sampled_tree[n]).seq, internal_names)
 
         return (;
             tree = sampled_tree,
             leaf_sequences = fmt_output(
                 leaf_sequences, alignment_output, translate_output;
-                names = map(label, leaves(sampled_tree)), dict=true,
+                names = leaf_names, dict=true,
             ),
             internal_sequences = fmt_output(
                 internal_sequences, alignment_output, translate_output;
-                names = map(label, internals(sampled_tree)), dict=true,
+                names = internal_names, dict=true,
             )
         )
     end

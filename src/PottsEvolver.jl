@@ -4,6 +4,7 @@ using ArgCheck
 using BioSequenceMappings
 using Logging
 using LoggingExtras
+using PoissonRandom
 using ProgressMeter
 using Random
 using StatsBase
@@ -39,7 +40,8 @@ export energy
 public set_gauge!
 
 include("sampling_core.jl")
-public mcmc_steps!
+export BranchLengthMeaning, SamplingParameters
+public mcmc_steps!, steps_from_branchlength
 
 include("sampling_chain.jl")
 public mcmc_sample_chain
@@ -48,7 +50,7 @@ include("sample_tree.jl")
 public mcmc_sample_tree, pernode_alignment
 
 include("sampling.jl")
-export mcmc_sample, SamplingParameters
+export mcmc_sample
 public get_init_sequence
 
 include("IO.jl")

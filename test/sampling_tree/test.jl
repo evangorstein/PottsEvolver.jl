@@ -12,16 +12,38 @@
     @test ismissing(branch_length(root(ptree)))
     @test data(root(ptree)).seq == rootseq
     @test data(root(ptree)).seq !== rootseq
+end
 
+@testset "branch length meaning" begin
+    L = 4
+    b1 = 2
+    b2 = 2.1 # rtol is 1e-6 for int
+    b3 = 2.5
 
-    tree = balanced_binary_tree(8, 1.0001)
-    ptree = PottsEvolver.prepare_tree(tree, rootseq)
-    for node in nodes(tree; skiproot=true)
-        @test !isapprox(branch_length(node), branch_length(ptree[label(node)]))
-    end
+    p = BranchLengthMeaning(:step, :exact)
+    @test PottsEvolver.steps_from_branchlength(b1, p, L) == b1
+    @test_throws ArgumentError PottsEvolver.steps_from_branchlength(b2, p, L)
+    @test_throws ArgumentError PottsEvolver.steps_from_branchlength(b3, p, L)
 
-    tree = balanced_binary_tree(8, 1.01) # rtol is by default 1e-3
-    @test_throws ArgumentError PottsEvolver.prepare_tree(tree, rootseq)
+    p = BranchLengthMeaning(:step, :round)
+    @test PottsEvolver.steps_from_branchlength(b1, p, L) == b1
+    @test PottsEvolver.steps_from_branchlength(b2, p, L) == round(Int, b2)
+    @test PottsEvolver.steps_from_branchlength(b3, p, L) == round(Int, b3)
+
+    p = BranchLengthMeaning(:step, :poisson)
+    @test PottsEvolver.steps_from_branchlength(b1, p, L) isa Int
+    @test PottsEvolver.steps_from_branchlength(b2, p, L) isa Int
+    @test PottsEvolver.steps_from_branchlength(b3, p, L) isa Int
+
+    p = BranchLengthMeaning(:sweep, :exact)
+    @test PottsEvolver.steps_from_branchlength(b1, p, L) == L*b1
+    @test_throws ArgumentError PottsEvolver.steps_from_branchlength(b2, p, L)
+    @test PottsEvolver.steps_from_branchlength(b3, p, L) ≈ L*b3
+
+    p = BranchLengthMeaning(:sweep, :round)
+    @test PottsEvolver.steps_from_branchlength(b1, p, L) == L*b1
+    @test PottsEvolver.steps_from_branchlength(b2, p, L) == L*round(Int, b2)
+    @test PottsEvolver.steps_from_branchlength(b3, p, L) ≈ L*b3
 end
 
 @testset "main function" begin
