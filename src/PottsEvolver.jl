@@ -31,7 +31,7 @@ export codon_alphabet, aa_alphabet, nt_alphabet
 export bases, genetic_code
 
 include("sequences.jl")
-export AbstractSequence, AASequence, CodonSequence
+export AbstractSequence, AASequence, CodonSequence, NumSequence
 #! format: off
 # public translate
 #! format: on
