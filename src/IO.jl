@@ -28,8 +28,7 @@ function read_graph_extended(file, T=FloatType)
             error("""
                 Format problem with line $n in $file
                 Expected format `J i j a b` or `h i a`. Instead $line
-                """
-            )
+                """)
         end
         if !isempty(line) && line[1] == 'h'
             i, a, val = parse_field_line(line, T)

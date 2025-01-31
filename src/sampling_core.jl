@@ -39,7 +39,6 @@ This is done in two consecutive steps.
     end
 end
 
-
 function steps_from_branchlength(τ::Real, p::BranchLengthMeaning, L::Int)
     if p.type == :sweep
         τ *= L
@@ -118,7 +117,6 @@ branchlength_meaning::BranchLengthMeaning
     end
 end
 
-
 #=======================================#
 ############## mcmc_steps! ##############
 #=======================================#
@@ -135,8 +133,13 @@ The step type (`:gibbs`, `:metropolis`) and the interpretation of `num_steps`
 Modifies the input sequence `s` and returns it.
 """
 function mcmc_steps!(
-    sequence::AbstractSequence, g::PottsGraph, num_steps::Integer, p::SamplingParameters;
-    rng=Random.GLOBAL_RNG, gibbs_holder=get_gibbs_holder(sequence), verbose=false,
+    sequence::AbstractSequence,
+    g::PottsGraph,
+    num_steps::Integer,
+    p::SamplingParameters;
+    rng=Random.GLOBAL_RNG,
+    gibbs_holder=get_gibbs_holder(sequence),
+    verbose=false,
 )
     @argcheck length(sequence) == size(g).L """
     Size of sequence and model do not match: $(length(sequence)) and $(size(g).L)

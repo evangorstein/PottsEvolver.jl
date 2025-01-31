@@ -32,7 +32,7 @@ function mcmc_sample(
     verbose=0,
     logfile=nothing,
     logfile_verbose=1,
-    kwargs...
+    kwargs...,
 )
     logger = get_logger(verbose, logfile, logfile_verbose)
     with_logger(logger) do
@@ -50,8 +50,12 @@ Choose the initial sequence based on `init` and `g`.
 See `PottsEvolver.get_init_sequence` for more information.
 """
 function mcmc_sample(
-    g::PottsGraph, M::Integer, params::SamplingParameters;
-    init=:random_num, verbose=0, kwargs...
+    g::PottsGraph,
+    M::Integer,
+    params::SamplingParameters;
+    init=:random_num,
+    verbose=0,
+    kwargs...,
 )
     s0 = get_init_sequence(init, g; verbose)
     return mcmc_sample(g, M, s0, params; verbose, kwargs...)
@@ -85,17 +89,19 @@ will be performed starting from the input sequence, and the result is set at the
 If you want a precise root sequence to be used, set `burnin=0` in `params`.
 """
 function mcmc_sample(
-    g, tree, params;
+    g,
+    tree,
+    params;
     verbose=0,
     logfile=nothing,
     logfile_verbose=1,
     alignment_output=true,
     translate_output=true,
-    kwargs... # init=get_init_sequence(...) here: passed to mcmc_sample_tree
+    kwargs..., # init=get_init_sequence(...) here: passed to mcmc_sample_tree
 )    # one sequence per node --> two alignments as output (+ tree)
     logger = get_logger(verbose, logfile, logfile_verbose)
     with_logger(logger) do
-    # Actual MCMC
+        # Actual MCMC
         sampled_tree = mcmc_sample_tree(g, tree, params; kwargs...)
 
         leaf_names = map(label, traversal(sampled_tree, :postorder; internals=false))
@@ -106,19 +112,25 @@ function mcmc_sample(
         internal_sequences = map(n -> data(sampled_tree[n]).seq, internal_names)
 
         return (;
-            tree = sampled_tree,
-            leaf_sequences = fmt_output(
-                leaf_sequences, alignment_output, translate_output;
-                names = leaf_names, dict=true,
+            tree=sampled_tree,
+            leaf_sequences=fmt_output(
+                leaf_sequences,
+                alignment_output,
+                translate_output;
+                names=leaf_names,
+                dict=true,
             ),
-            internal_sequences = fmt_output(
-                internal_sequences, alignment_output, translate_output;
-                names = internal_names, dict=true,
-            )
+            internal_sequences=fmt_output(
+                internal_sequences,
+                alignment_output,
+                translate_output;
+                names=internal_names,
+                dict=true,
+            ),
         )
     end
 end
-function mcmc_sample(g, tree,  M::Int, params; kwargs...)
+function mcmc_sample(g, tree, M::Int, params; kwargs...)
     # M sequences per node --> [(tree, leaf, internals)] of length `M`
     return [mcmc_sample(g, tree, params; kwargs...) for _ in 1:M]
 end

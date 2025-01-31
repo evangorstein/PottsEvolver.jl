@@ -18,8 +18,7 @@ Return a sampled copy `tree`.
     root sequence (useful if *e.g.* `init=:random_codon`)
 """
 function mcmc_sample_tree(
-    g::PottsGraph, tree::Tree, params::SamplingParameters;
-    init=:random_num, kwargs...,
+    g::PottsGraph, tree::Tree, params::SamplingParameters; init=:random_num, kwargs...
 )
     # Pick initial sequence
     s0 = get_init_sequence(init, g)
@@ -36,8 +35,11 @@ function mcmc_sample_tree(
     return mcmc_sample_tree(g, tree, s0, params; kwargs...)
 end
 function mcmc_sample_tree(
-    g::PottsGraph, tree::Tree, rootseq::AbstractSequence, params::SamplingParameters;
-    kwargs...
+    g::PottsGraph,
+    tree::Tree,
+    rootseq::AbstractSequence,
+    params::SamplingParameters;
+    kwargs...,
 )
     tree_copy = prepare_tree(tree, rootseq)
     return mcmc_sample_tree!(g, tree_copy, params; kwargs...) # returns tree_copy
@@ -110,7 +112,7 @@ end
 ######## Utils ########
 #=====================#
 
-function prepare_tree(tree::Tree, rootseq::S) where S <: AbstractSequence
+function prepare_tree(tree::Tree, rootseq::S) where {S<:AbstractSequence}
     # convert to right type -- this makes a copy
     tree_copy = convert(Tree{Sequence{S}}, tree)
     # set root sequence
@@ -139,7 +141,7 @@ Transform this to a dictionary `label => alignment`, where `label` corresponds t
 """
 function pernode_alignment(data::AbstractVector{<:NamedTuple})
     if isempty(data)
-        return (;tree=nothing, leaf_sequences=[], internal_sequences=nothing)
+        return (; tree=nothing, leaf_sequences=[], internal_sequences=nothing)
     end
     tree = first(data).tree
     leaf_sequences = _pernode_alignment([d.leaf_sequences for d in data])
@@ -148,7 +150,7 @@ function pernode_alignment(data::AbstractVector{<:NamedTuple})
     return (; tree, sequences)
 end
 
-function _pernode_alignment(data::Vector{Dict{String,T}}) where T<:AbstractSequence
+function _pernode_alignment(data::Vector{Dict{String,T}}) where {T<:AbstractSequence}
     out = Dict{String,Vector{T}}()
     for (m, tree_data) in enumerate(data), (label, seq) in tree_data
         push!(get!(out, label, T[]), seq)
@@ -156,7 +158,7 @@ function _pernode_alignment(data::Vector{Dict{String,T}}) where T<:AbstractSeque
     return out
 end
 
-function _pernode_alignment(data::Vector{T}) where T<:Alignment
+function _pernode_alignment(data::Vector{T}) where {T<:Alignment}
     @argcheck allequal(A -> A.alphabet, data)
     alphabet = first(data).alphabet
     labels = first(data).names

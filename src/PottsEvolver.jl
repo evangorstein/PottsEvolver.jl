@@ -32,26 +32,37 @@ export bases, genetic_code
 
 include("sequences.jl")
 export AbstractSequence, AASequence, CodonSequence
-public translate
-
+#! format: off
+# public translate
+#! format: on
 include("pottsgraph.jl")
 export PottsGraph
 export energy
-public set_gauge!
+#! format: off
+# public set_gauge!
+#! format: on
 
 include("sampling_core.jl")
 export BranchLengthMeaning, SamplingParameters
-public mcmc_steps!, steps_from_branchlength
+#! format: off
+# public mcmc_steps!, steps_from_branchlength
+#! format: on
 
 include("sampling_chain.jl")
-public mcmc_sample_chain
+#! format: off
+# public mcmc_sample_chain
+#! format: on
 
 include("sample_tree.jl")
-public mcmc_sample_tree, pernode_alignment
+#! format: off
+# public mcmc_sample_tree, pernode_alignment
+#! format: on
 
 include("sampling.jl")
 export mcmc_sample
-public get_init_sequence
+#! format: off
+# public get_init_sequence
+#! format: on
 
 include("IO.jl")
 export read_graph, read_potts_graph
