@@ -91,7 +91,7 @@ function mcmc_sample(
     logfile_verbose=1,
     alignment_output=true,
     translate_output=true,
-    kwargs...
+    kwargs... # init=get_init_sequence(...) here: passed to mcmc_sample_tree
 )    # one sequence per node --> two alignments as output (+ tree)
     logger = get_logger(verbose, logfile, logfile_verbose)
     with_logger(logger) do
