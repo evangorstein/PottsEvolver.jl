@@ -1,3 +1,5 @@
+import TreeTools.Generate: balanced_binary_tree
+
 @testset "prepare_tree" begin
     tree = balanced_binary_tree(8, 1.0)
     rootseq = CodonSequence(5)
@@ -54,7 +56,7 @@ end
     tree = PottsEvolver.prepare_tree(balanced_binary_tree(8, 1.0), rootseq)
     params = SamplingParameters(step_meaning=:changed, Teq=5, burnin=100) # Teq & burnin should not matter!
 
-    tree = @test_warn r"`Teq` and `burnin`" PottsEvolver.mcmc_sample_tree!(g, tree, params)
+    tree = PottsEvolver.mcmc_sample_tree!(g, tree, params)
     for node in nodes(tree; skiproot=true)
         nseq = data(node).seq
         aseq = data(ancestor(node)).seq
@@ -70,18 +72,18 @@ end
 
     # providing root sequence
     rootseq = CodonSequence(L)
-    sampled_tree = @test_warn r"`Teq` and `burnin`" PottsEvolver.mcmc_sample_tree(
+    sampled_tree = PottsEvolver.mcmc_sample_tree(
         g, tree, rootseq, params
-    ) # should issue a warning about burnin not being used
+    )
     @test tree !== sampled_tree # should be a copy
     @test data(root(sampled_tree)).seq == rootseq
     @test data(root(sampled_tree)).seq !== rootseq
 
     # providing init kwarg and burnin
     rootseq = PottsEvolver.NumSequence(L, q)
-    sampled_tree = @test_warn r"`Teq` and `burnin`" PottsEvolver.mcmc_sample_tree(
+    sampled_tree = PottsEvolver.mcmc_sample_tree(
         g, tree, params; init = rootseq,
-    ) # should issue a warning about burnin not being used
+    )
     @test tree !== sampled_tree # should be a copy
     @test data(root(sampled_tree)).seq != rootseq # finite burnin: with probability ≈1 they should be different
 

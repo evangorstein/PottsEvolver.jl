@@ -75,9 +75,7 @@ function mcmc_sample_tree!(
     end
 
     @unpack Teq, burnin = params
-    if Teq > 0
-        @info "Sampling on a tree: `Teq` field in parameters will be ignored" Teq
-    end
+    Teq > 0 && @info "Sampling on a tree: `Teq` field in parameters is ignored" Teq
 
     # some settings
     gibbs_holder = get_gibbs_holder(data(root(tree)).seq)
