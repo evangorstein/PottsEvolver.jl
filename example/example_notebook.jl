@@ -6,16 +6,17 @@ using InteractiveUtils
 
 # ╔═╡ a9825e4c-92e6-11ef-168d-0f2ba863e26d
 begin
-	using Pkg; Pkg.activate(".")
-	using UnPack
-	using PlutoUI
-	using PottsEvolver
+    using Pkg
+    Pkg.activate(".")
+    using UnPack
+    using PlutoUI
+    using PottsEvolver
 end
 
 # ╔═╡ 992f54a2-c37a-47ce-9395-88dda801ecbc
 begin
-	using TreeTools # at this point it's just useful to have this
-	using BioSequenceMappings
+    using TreeTools # at this point it's just useful to have this
+    using BioSequenceMappings
 end
 
 # ╔═╡ ab2d6cdb-b5be-438c-98c0-27bcb81f2f95
@@ -49,10 +50,10 @@ If your potts model does not use this, you can of course change `potts.alphabet`
 
 # ╔═╡ 907c9922-b45c-4973-8bf3-7dcc8219a61f
 [
-	size(potts.h), # q*L
-	size(potts.J), # q*q*L*L
-	length(potts.alphabet), # q
-	size(potts) # named tuple (; L, q)
+    size(potts.h), # q*L
+    size(potts.J), # q*q*L*L
+    length(potts.alphabet), # q
+    size(potts), # named tuple (; L, q)
 ]
 
 # ╔═╡ 95d11aca-45ef-4720-8bc8-0812319c6854
@@ -83,9 +84,9 @@ The following will sample a chain of length `M=10`, starting from a random codon
 
 # ╔═╡ 6576b8ba-762c-4e74-90b5-76f3725557d7
 result = let
-	M = 10
-	parameters = SamplingParameters(Teq=100, burnin=0)
-	mcmc_sample(potts, M, parameters; init=:random_codon, translate_output=true)
+    M = 10
+    parameters = SamplingParameters(; Teq=100, burnin=0)
+    mcmc_sample(potts, M, parameters; init=:random_codon, translate_output=true)
 end;
 
 # ╔═╡ 7b174b8a-13bd-4534-bc0e-595149f9411f
@@ -95,9 +96,9 @@ The output contains the sample, the "time" of each sequence within the chain (*i
 
 # ╔═╡ 7b455214-13e5-4646-a9c5-11e538475bca
 begin
-	@unpack sequences, tvals = result
-	println("Time values: $tvals")
-	sequences
+    @unpack sequences, tvals = result
+    println("Time values: $tvals")
+    sequences
 end
 
 # ╔═╡ f871ce6f-c80a-433e-a954-d34002d7b5c1
@@ -122,9 +123,9 @@ It's also easy to write / read alignments.
 
 # ╔═╡ 0017a217-7cd6-4974-b936-30f93631396e
 let
-	write("example_alignment.fasta", sequences) 
-	X = read_fasta("example_alignment.fasta")
-	all(x -> x[1]==x[2], zip(X, sequences))
+    write("example_alignment.fasta", sequences)
+    X = read_fasta("example_alignment.fasta")
+    all(x -> x[1] == x[2], zip(X, sequences))
 end
 
 # ╔═╡ 558f08ed-dfa0-4b18-8dc1-5c7c816b3534
@@ -167,29 +168,29 @@ the docstring of `PottsEvolver.get_init_sequence` will be helpful.
 
 # ╔═╡ aabe38f7-8f6e-4b66-949f-5da952193237
 let
-	not_stop = filter(x -> x!=13 && x!=5, 1:21) # 
-	s_not_valid = rand(not_stop, L) # Vector{Int} is not a valid input
-	
-	# Valid initial sequences
-	aa_seq = AASequence(s_not_valid) # assumes the sequence is amino acids
-	codon_seq = CodonSequence(s_not_valid) # assumes the sequence is codons
-	num_seq = PottsEvolver.NumSequence(s_not_valid) # assumes the sequence has no biological meaning
+    not_stop = filter(x -> x != 13 && x != 5, 1:21) # 
+    s_not_valid = rand(not_stop, L) # Vector{Int} is not a valid input
 
-	# Using this for sampling
-	parameters = SamplingParameters(Teq=100, burnin=0)
-	mcmc_sample(potts, 10, aa_seq, parameters) # use "normal" amino acid based mcmc 
-	mcmc_sample(potts, 10, codon_seq, parameters) # use codon based mcmc
+    # Valid initial sequences
+    aa_seq = AASequence(s_not_valid) # assumes the sequence is amino acids
+    codon_seq = CodonSequence(s_not_valid) # assumes the sequence is codons
+    num_seq = PottsEvolver.NumSequence(s_not_valid) # assumes the sequence has no biological meaning
 
-	mcmc_sample(potts, 10, parameters; init=aa_seq) # this also works
-	mcmc_sample(potts, 10, parameters; init=s_not_valid) # should work, but it's less clear
-	mcmc_sample(potts, 10, parameters; init=:random_aa) # operates on aa, but starting from a random sequence
+    # Using this for sampling
+    parameters = SamplingParameters(; Teq=100, burnin=0)
+    mcmc_sample(potts, 10, aa_seq, parameters) # use "normal" amino acid based mcmc 
+    mcmc_sample(potts, 10, codon_seq, parameters) # use codon based mcmc
+
+    mcmc_sample(potts, 10, parameters; init=aa_seq) # this also works
+    mcmc_sample(potts, 10, parameters; init=s_not_valid) # should work, but it's less clear
+    mcmc_sample(potts, 10, parameters; init=:random_aa) # operates on aa, but starting from a random sequence
 end
 
 # ╔═╡ 65c82b80-cdfb-47f4-b398-989ec42ebbb3
 let
-	# Creating a random sequence is also easy
-	rand_codon_seq = CodonSequence(L)
-	# etc...
+    # Creating a random sequence is also easy
+    rand_codon_seq = CodonSequence(L)
+    # etc...
 end
 
 # ╔═╡ 58c13678-8cc7-45f2-9720-6b9b47596ccd
@@ -210,9 +211,9 @@ If you do not translate the output, here is what happens:
 
 # ╔═╡ d9e5a4a1-7fab-4140-94dd-a4943bb16a0e
 sequences_codon = let
-	M = 10
-	parameters = SamplingParameters(Teq=100, burnin=0)
-	mcmc_sample(potts, M, parameters; init=:random_codon).sequences
+    M = 10
+    parameters = SamplingParameters(; Teq=100, burnin=0)
+    mcmc_sample(potts, M, parameters; init=:random_codon).sequences
 end;
 
 # ╔═╡ 2ddc7737-8ae2-4725-91dd-5076c3bbd350
@@ -220,13 +221,13 @@ sequences_codon[1] # integers larger than 21 --> codons
 
 # ╔═╡ 9bb03d89-8156-468d-a8e1-b7c8f753f9af
 # Here are three ways to map this to amino acids
-let 
-	alphabet = sequences_codon.alphabet # same as potts.alphabet
-	s0 = sequences_codon[1]
-	@info "Integer codons" s0 # Vector{Integer} standing for codons
-	@info "Codons" alphabet(s0) # vector of PottsEvolver.Codon
-	@info "Integer AA" map(x -> genetic_code(x), s0) # Vector{Integer} standing for amino acids
-	@info "Char AA" map(x -> x |> alphabet |> genetic_code, s0) # vector of Char, for amino acids
+let
+    alphabet = sequences_codon.alphabet # same as potts.alphabet
+    s0 = sequences_codon[1]
+    @info "Integer codons" s0 # Vector{Integer} standing for codons
+    @info "Codons" alphabet(s0) # vector of PottsEvolver.Codon
+    @info "Integer AA" map(x -> genetic_code(x), s0) # Vector{Integer} standing for amino acids
+    @info "Char AA" map(x -> genetic_code(alphabet(x)), s0) # vector of Char, for amino acids
 end
 
 # ╔═╡ 434db5aa-92d4-45dc-abda-30757305aa5e
@@ -252,9 +253,9 @@ Sampling on this tree is easy: just call `mcmc_sample` with the tree object inst
 
 # ╔═╡ b1aea1ba-c13d-4205-8761-3c6bf557da05
 result_tree = let
-	# Teq is useless here, but SamplingParameters complains if you don't set it
-	parameters = SamplingParameters(Teq=0, burnin=0)
-	mcmc_sample(potts, tree, parameters; init=:random_codon)
+    # Teq is useless here, but SamplingParameters complains if you don't set it
+    parameters = SamplingParameters(; Teq=0, burnin=0)
+    mcmc_sample(potts, tree, parameters; init=:random_codon)
 end
 
 # ╔═╡ 91103fb3-896b-420b-ba28-51871f725a11
@@ -269,11 +270,11 @@ For each of these, the sequences are labeled using the label of tree nodes.
 
 # ╔═╡ 77ed2514-772c-45be-8b04-f4593d80a462
 let
-	# Find a sequence given a leaf label
-	interesting_leaf = label(first(leaves(tree)))
-	@info "Let's look at leaf $(interesting_leaf)"
-	seq = find_sequence(interesting_leaf, result_tree.leaf_sequences)[2]
-	@info "Corresponding sequence: $(result_tree.leaf_sequences.alphabet(seq))"
+    # Find a sequence given a leaf label
+    interesting_leaf = label(first(leaves(tree)))
+    @info "Let's look at leaf $(interesting_leaf)"
+    seq = find_sequence(interesting_leaf, result_tree.leaf_sequences)[2]
+    @info "Corresponding sequence: $(result_tree.leaf_sequences.alphabet(seq))"
 end
 
 # ╔═╡ e7e26419-29d1-4444-a248-5979c4ba755f
@@ -287,31 +288,34 @@ We want to start from equilibrated sequences and sample `K` times.
 
 # ╔═╡ a0330814-385f-4296-aa70-7d111267bb1f
 let
-	K = 10
-	# Long mcmc chain to sample K sequences
-	parameters = SamplingParameters(
-		step_meaning=:accepted, Teq=100*L, burnin=1000*L, 
-	)
-	# no translate because we want to sample on tree using the codon algorithm
-	# no alignment output because we want the CodonSequence at the root
-	init_sequences = mcmc_sample(
-		potts, K, parameters; 
-		init=:random_codon, translate_output=false, alignment_output=false,
-	).sequences
-	@info typeof(init_sequences)
+    K = 10
+    # Long mcmc chain to sample K sequences
+    parameters = SamplingParameters(; step_meaning=:accepted, Teq=100 * L, burnin=1000 * L)
+    # no translate because we want to sample on tree using the codon algorithm
+    # no alignment output because we want the CodonSequence at the root
+    init_sequences =
+        mcmc_sample(
+            potts,
+            K,
+            parameters;
+            init=:random_codon,
+            translate_output=false,
+            alignment_output=false,
+        ).sequences
+    @info typeof(init_sequences)
 
-	# For each initial sequence, sample on the tree
-	# save result to some directory
-	savedir = mkpath("_scrap")
-	parameters = SamplingParameters(step_meaning=:accepted, Teq=0)
-	for (i, init) in enumerate(init_sequences)
-		results = mcmc_sample(potts, tree, parameters; init)
-		@unpack leaf_sequences, internal_sequences = results
-		write(joinpath(savedir, "leaf_sequences_$i.fasta"), leaf_sequences)
-		write(joinpath(savedir, "internal_sequences_$i.fasta"), internal_sequences)
-	end
-	# write the tree for reference
-	write(joinpath(savedir, "tree.nwk"), tree)
+    # For each initial sequence, sample on the tree
+    # save result to some directory
+    savedir = mkpath("_scrap")
+    parameters = SamplingParameters(; step_meaning=:accepted, Teq=0)
+    for (i, init) in enumerate(init_sequences)
+        results = mcmc_sample(potts, tree, parameters; init)
+        @unpack leaf_sequences, internal_sequences = results
+        write(joinpath(savedir, "leaf_sequences_$i.fasta"), leaf_sequences)
+        write(joinpath(savedir, "internal_sequences_$i.fasta"), internal_sequences)
+    end
+    # write the tree for reference
+    write(joinpath(savedir, "tree.nwk"), tree)
 end
 
 # ╔═╡ Cell order:

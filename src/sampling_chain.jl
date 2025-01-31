@@ -57,15 +57,13 @@ function mcmc_sample_chain(
     @info "Sampling..."
     time = @elapsed for m in 2:M
         # doing Teq steps on the current configuration
-        _, proposed, performed = mcmc_steps!(
-            conf, g, Teq, params; rng, gibbs_holder,
-        )
+        _, proposed, performed = mcmc_steps!(conf, g, Teq, params; rng, gibbs_holder)
         # storing the result in S
         S[m] = copy(conf)
-        tvals[m] = tvals[m-1] + Teq
+        tvals[m] = tvals[m - 1] + Teq
         # misc.
         push!(
-            log_info, (proposed=proposed, performed=performed, ratio=performed/proposed)
+            log_info, (proposed=proposed, performed=performed, ratio=performed / proposed)
         )
         next!(progress; showvalues=[("steps", m + 1), ("total", M)])
     end
@@ -80,29 +78,25 @@ end
 #=====================#
 
 function fmt_output(
-    sequences::AbstractVector{T}, alignment, translate;
-    names=nothing, dict=false,
-) where T<:CodonSequence
+    sequences::AbstractVector{T}, alignment, translate; names=nothing, dict=false
+) where {T<:CodonSequence}
     return if alignment
         A = Alignment(sequences; names)
         translate ? genetic_code(A) : A
     elseif dict
-        Dict{String, T}(name => seq for (name, seq) in zip(names, sequences))
+        Dict{String,T}(name => seq for (name, seq) in zip(names, sequences))
     else
         sequences
     end
 end
 function fmt_output(
-    sequences::AbstractVector{T}, alignment, translate;
-    names=nothing, dict=false,
-) where T<:AbstractSequence
+    sequences::AbstractVector{T}, alignment, translate; names=nothing, dict=false
+) where {T<:AbstractSequence}
     return if alignment
         Alignment(sequences; names)
     elseif dict
-        Dict{String, T}(name => seq for (name, seq) in zip(names, sequences))
+        Dict{String,T}(name => seq for (name, seq) in zip(names, sequences))
     else
         sequences
     end
 end
-
-

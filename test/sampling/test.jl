@@ -48,7 +48,9 @@ end
         x.alphabet = Alphabet("ACDEFGHIKLMNPQRSTVWY-")
         x
     end
-    S, _ = mcmc_sample(g_strangealphabet, M, params; init=[1, 2, 3, 4], alignment_output=false)
+    S, _ = mcmc_sample(
+        g_strangealphabet, M, params; init=[1, 2, 3, 4], alignment_output=false
+    )
     @test S isa AbstractVector{<:PottsEvolver.NumSequence}
 
     ## AA sequence

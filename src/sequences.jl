@@ -53,7 +53,7 @@ Base.copy(s::AASequence) = AASequence(copy(s.seq))
 Return a random `AASequence{T}` of length `L`.
 """
 AASequence(L::Integer; T=IntType) = AASequence(rand(T(1):T(length(aa_alphabet)), L))
-AASequence{T}(L::Integer) where T<:Integer = AASequence(L; T)
+AASequence{T}(L::Integer) where {T<:Integer} = AASequence(L; T)
 
 _sequence_alphabet(::Type{<:AASequence}; kwargs...) = aa_alphabet
 
@@ -116,7 +116,7 @@ Underlying integer type is `T`.
 function CodonSequence(L::Int; source=:aa, T=IntType)
     return CodonSequence(rand(T(1):T(length(aa_alphabet)), L); source)
 end
-CodonSequence{T}(L::Int; kwargs...) where T<:Integer = CodonSequence(L; T, kwargs...)
+CodonSequence{T}(L::Int; kwargs...) where {T<:Integer} = CodonSequence(L; T, kwargs...)
 
 ## Methods
 
@@ -156,7 +156,7 @@ Construct a random sequence of integers of length `L` using integers `1:q`.
 The integer type can be set using `T`.
 """
 NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence(rand(T(1):T(q), L), T(q))
-NumSequence{T}(L::Integer, q::Integer) where T<:Integer = NumSequence(L, q; T)
+NumSequence{T}(L::Integer, q::Integer) where {T<:Integer} = NumSequence(L, q; T)
 function NumSequence(L::Integer; kwargs...)
     if L != 0
         msg = """
@@ -172,7 +172,7 @@ function NumSequence(L::Integer; kwargs...)
     """
     return NumSequence(0, 1)
 end
-NumSequence{T}(L::Integer) where T<:Integer = NumSequence(L; T)
+NumSequence{T}(L::Integer) where {T<:Integer} = NumSequence(L; T)
 
 Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
 

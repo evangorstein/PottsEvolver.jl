@@ -18,15 +18,14 @@ Return a sampled copy `tree`.
     root sequence (useful if *e.g.* `init=:random_codon`)
 """
 function mcmc_sample_tree(
-    g::PottsGraph, tree::Tree, params::SamplingParameters;
-    init=:random_num, kwargs...,
+    g::PottsGraph, tree::Tree, params::SamplingParameters; init=:random_num, kwargs...
 )
     # Pick initial sequence
     s0 = get_init_sequence(init, g)
     # If burnin, then equilibrate the picked sequence first
     @unpack burnin = params
     if burnin > 0
-        @info "Equilibrating root sequence with $(burnin) burnin iterations... "
+        @info "Equilibrating root sequence with $(burnin) burnin steps... "
         gibbs_holder = get_gibbs_holder(s0)
         time = @elapsed mcmc_steps!(s0, g, burnin, params; gibbs_holder, kwargs...)
         @info "done in $time seconds"
@@ -36,8 +35,11 @@ function mcmc_sample_tree(
     return mcmc_sample_tree(g, tree, s0, params; kwargs...)
 end
 function mcmc_sample_tree(
-    g::PottsGraph, tree::Tree, rootseq::AbstractSequence, params::SamplingParameters;
-    kwargs...
+    g::PottsGraph,
+    tree::Tree,
+    rootseq::AbstractSequence,
+    params::SamplingParameters;
+    kwargs...,
 )
     tree_copy = prepare_tree(tree, rootseq)
     return mcmc_sample_tree!(g, tree_copy, params; kwargs...) # returns tree_copy
@@ -58,11 +60,6 @@ function mcmc_sample_tree!(
     params::SamplingParameters;
     rng=Random.GLOBAL_RNG,
 ) where {S<:AbstractSequence}
-    # checks
-    @argcheck all(n -> is_approx_integer(branch_length(n)), nodes(tree; skiproot=true)) """
-        Branches of tree should be integers.\
-        Instead $(map(branch_length, nodes(tree; skiproot=true)))
-    """
     tmp_check_alphabet_consistency(g, data(root(tree)).seq)
 
     # logging & warnings
@@ -71,17 +68,16 @@ function mcmc_sample_tree!(
         s0 = data(root(tree)).seq
         @info """
         Sampling sequences of tree with $M leaves using the following settings:
-            - Type of sequence = $(supertype(typeof(s0)))
-            - Step style = $(params.step_type)
-            - Step meaning = $(params.step_meaning)
+            - type of sequence = $(typeof(s0))
+            - step style = $(params.step_type)
+            - step meaning = $(params.step_meaning)
             - fraction of gap steps (if codon) = $(params.fraction_gap_step)
+            - branch length meaning = $(params.branchlength_meaning)
         """
     end
 
     @unpack Teq, burnin = params
-    if Teq > 0 || burnin > 0
-        @warn "`Teq` and `burnin` fields in parameters will be ignored" Teq burnin
-    end
+    Teq > 0 && @info "Sampling on a tree: `Teq` field in parameters is ignored" Teq
 
     # some settings
     gibbs_holder = get_gibbs_holder(data(root(tree)).seq)
@@ -94,11 +90,15 @@ function mcmc_sample_tree!(
 end
 
 function sample_children!(node::TreeNode{<:Sequence}, g, params, gibbs_holder; kwargs...)
+    L = size(g).L
     for c in children(node)
         # copy the ancestral sequence
         s0 = copy(data(node).seq)
         # mcmc using it as an init
-        nsteps = round(Int, branch_length(c))
+        nsteps = steps_from_branchlength(branch_length(c), params.branchlength_meaning, L)
+        @debug """
+        branchlen=$(branch_length(c)) - L=$L --> nsteps=$nsteps
+        """
         mcmc_steps!(s0, g, nsteps, params; gibbs_holder, kwargs...) # from sampling.jl
         # copy result to child
         data!(c, Sequence(s0))
@@ -112,32 +112,14 @@ end
 ######## Utils ########
 #=====================#
 
-is_approx_integer(x) = isapprox(x, round(x))
-
-function prepare_tree(tree::Tree, rootseq::S) where S <: AbstractSequence
+function prepare_tree(tree::Tree, rootseq::S) where {S<:AbstractSequence}
     # convert to right type -- this makes a copy
     tree_copy = convert(Tree{Sequence{S}}, tree)
     # set root sequence
     data!(root(tree_copy), Sequence(copy(rootseq)))
-    #
-    round_tree_branch_length!(tree_copy)
+
     return tree_copy
 end
-
-function round_tree_branch_length!(tree::Tree; rtol=1e-3)
-    for node in nodes(tree; skiproot=true)
-        x = branch_length(node)
-        if ismissing(x) || !isapprox(x, round(Int, x); rtol)
-            throw(ArgumentError(
-                "Expected tree with (approximately) integer branch lengths. Instead $x"
-            ))
-        else
-            branch_length!(node, round(Int, x))
-        end
-    end
-    return tree
-end
-
 
 """
     pernode_alignment(data)
@@ -159,7 +141,7 @@ Transform this to a dictionary `label => alignment`, where `label` corresponds t
 """
 function pernode_alignment(data::AbstractVector{<:NamedTuple})
     if isempty(data)
-        return (;tree=nothing, leaf_sequences=[], internal_sequences=nothing)
+        return (; tree=nothing, leaf_sequences=[], internal_sequences=nothing)
     end
     tree = first(data).tree
     leaf_sequences = _pernode_alignment([d.leaf_sequences for d in data])
@@ -168,7 +150,7 @@ function pernode_alignment(data::AbstractVector{<:NamedTuple})
     return (; tree, sequences)
 end
 
-function _pernode_alignment(data::Vector{Dict{String,T}}) where T<:AbstractSequence
+function _pernode_alignment(data::Vector{Dict{String,T}}) where {T<:AbstractSequence}
     out = Dict{String,Vector{T}}()
     for (m, tree_data) in enumerate(data), (label, seq) in tree_data
         push!(get!(out, label, T[]), seq)
@@ -176,7 +158,7 @@ function _pernode_alignment(data::Vector{Dict{String,T}}) where T<:AbstractSeque
     return out
 end
 
-function _pernode_alignment(data::Vector{T}) where T<:Alignment
+function _pernode_alignment(data::Vector{T}) where {T<:Alignment}
     @argcheck allequal(A -> A.alphabet, data)
     alphabet = first(data).alphabet
     labels = first(data).names
