@@ -142,6 +142,28 @@ end
 #============================================================#
 
 """
+    NumSequence{T<:Integer, q}
+
+A mutable struct representing a sequence of integers with a maximum value constraint `q`.
+1. **Explicit Construction**: `NumSequence(seq::AbstractVector{T}, q::Integer)` or `NumSequence{T,q}(seq)`
+2. **Random Construction**: `NumSequence{T,q}(L::Integer)` or `NumSequence(L::Integer, q::Integer; T=IntType)`.
+    Construct a `NumSequence` of length `L` with random integers of type `T` in the range `[1, q]`.
+
+
+# Examples
+
+```julia-repl
+julia> seq = [1, 2, 3, 4]
+julia> num_seq = NumSequence(seq, 4)
+
+julia> random_seq = NumSequence(10, 5; T=Int8)
+
+
+julia> max_value = num_seq.q  # Returns 4
+
+
+julia> copied_seq = copy(num_seq)
+```
 """
 @kwdef mutable struct NumSequence{T<:Integer,q} <: AbstractSequence
     seq::Vector{T}
@@ -169,11 +191,13 @@ NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence{T,q}(L)
 
 Base.copy(x::NumSequence{T,q}) where {T,q} = NumSequence(copy(x.seq), q)
 
-function Base.getproperty(::NumSequence{T,q}, sym::Symbol) where {T,q}
-    if sym != :q
-        throw(ErrorException("type NumSequence has no field $sym"))
+function Base.getproperty(x::NumSequence{T,q}, sym::Symbol) where {T,q}
+    if sym == :q
+        return q
+    elseif hasproperty(x, sym)
+        return getfield(x, sym)
     end
-    return q
+    throw(ErrorException("type NumSequence has no field $sym"))
 end
 #===========================================================================#
 ########################## Converting to Alignment ##########################

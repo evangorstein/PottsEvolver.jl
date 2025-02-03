@@ -93,9 +93,9 @@ end
 
 @testset "Sequences to alignent" begin
     M, L, q = (3, 10, 5)
-    numseqs = map(_ -> NumSequence(L, q; T=Int32), 1:M)
-    aaseqs = map(_ -> AASequence(L), 1:M) # default integer type should be IntType
-    codonseqs = map(_ -> CodonSequence(L), 1:M)
+    numseqs = [NumSequence(L, q; T=Int32) for _ in 1:M]
+    aaseqs = [AASequence(L) for _ in 1:M] # default integer type should be IntType
+    codonseqs = [CodonSequence(L) for _ in 1:M]
 
     A = Alignment(numseqs)
     @test A isa Alignment{Nothing,Int32}
