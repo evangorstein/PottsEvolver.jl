@@ -1,7 +1,9 @@
 abstract type AbstractSequence end
 
-Base.getindex(s::AbstractSequence, i) = getindex(s.seq, i)
-Base.setindex!(s::AbstractSequence, x, i) = setindex!(s.seq, x, i)
+sequence(x::AbstractSequence; kwargs...) = x.seq
+
+Base.getindex(s::AbstractSequence, i) = getindex(sequence(s), i)
+Base.setindex!(s::AbstractSequence, x, i) = setindex!(sequence(s), x, i)
 function Base.:(==)(x::T, y::T) where {T<:AbstractSequence}
     return all(p -> getproperty(x, p) == getproperty(y, p), propertynames(x))
 end
@@ -9,22 +11,21 @@ function Base.hash(x::AbstractSequence, h::UInt)
     return hash(x.seq, h)
 end
 
-Base.iterate(s::AbstractSequence) = iterate(s.seq)
-Base.iterate(s::AbstractSequence, state) = iterate(s.seq, state)
-Base.length(s::AbstractSequence) = length(s.seq)
-Base.eltype(s::AbstractSequence) = eltype(s.seq)
+Base.iterate(s::AbstractSequence) = iterate(sequence(s))
+Base.iterate(s::AbstractSequence, state) = iterate(sequence(s), state)
+Base.length(s::AbstractSequence) = length(sequence(s))
+Base.eltype(s::AbstractSequence) = eltype(sequence(s))
 
-# the two functions below: used in Alignment
-sequence(x::AbstractSequence; kwargs...) = x.seq
+# used in Alignment
 _sequence_alphabet(::Type{<:AbstractSequence}; kwargs...) = nothing
 
 #=
 Methods that a subtype should implement
+- sequence: access integer vector (necessary if field is not called `seq`)
+- copy !NECESSARY!
 - equality and hash
 - indexing
-- copy
-- sequence
-- _sequence_alphabet
+- _sequence_alphabet: return default alphabet for the type
 =#
 
 #====================================#
@@ -140,42 +141,64 @@ end
 ##################### Numerical sequence #####################
 #============================================================#
 
-@kwdef mutable struct NumSequence{T<:Integer} <: AbstractSequence
+"""
+    NumSequence{T<:Integer, q}
+
+A mutable struct representing a sequence of integers with a maximum value constraint `q`.
+1. **Explicit Construction**: `NumSequence(seq::AbstractVector{T}, q::Integer)` or `NumSequence{T,q}(seq)`
+2. **Random Construction**: `NumSequence{T,q}(L::Integer)` or `NumSequence(L::Integer, q::Integer; T=IntType)`.
+    Construct a `NumSequence` of length `L` with random integers of type `T` in the range `[1, q]`.
+
+
+# Examples
+
+```julia-repl
+julia> seq = [1, 2, 3, 4]
+julia> num_seq = NumSequence(seq, 4)
+
+julia> random_seq = NumSequence(10, 5; T=Int8)
+
+
+julia> max_value = num_seq.q  # Returns 4
+
+
+julia> copied_seq = copy(num_seq)
+```
+"""
+@kwdef mutable struct NumSequence{T<:Integer,q} <: AbstractSequence
     seq::Vector{T}
-    q::T = maximum(seq)
-    function NumSequence(seq::AbstractVector{T}, q) where {T}
-        @argcheck all(<=(q), seq)
-        return new{T}(seq, q)
+    function NumSequence{T,q}(seq::AbstractVector) where {T<:Integer,q}
+        @argcheck q isa Integer "Expect `Integer` for maximum value `q`. Instead $q"
+        @argcheck all(x -> 0 < x <= q, seq) "Expect `0 < x < q=$q` for all elements."
+        q_convert = convert(T, q) # can potentially fail if say T==Int8 and q very large.
+        return new{T,q_convert}(seq)
     end
 end
-NumSequence(seq::AbstractVector) = NumSequence(; seq)
-"""
-    NumSequence(L, q; T)
 
-Construct a random sequence of integers of length `L` using integers `1:q`.
-The integer type can be set using `T`.
-"""
-NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence(rand(T(1):T(q), L), T(q))
-NumSequence{T}(L::Integer, q::Integer) where {T<:Integer} = NumSequence(L, q; T)
-function NumSequence(L::Integer; kwargs...)
-    if L != 0
-        msg = """
-        Must provide a number of states `q` to build a random numerical sequence:\
-        `NumSequence(L, q)`. Instead got `NumSequence($L)`.
-        """
-        throw(ArgumentError(msg))
-    end
-    @warn """
-        Initializer of empty NumSequence, without knowledge of `q`.
-        Needed when converting a tree to `Tree{Sequence{NumSequence}}`, since `T(0)` called.
-        Ideally I should change this. Should be `NumSequence{q}`, would make things easier.
-    """
-    return NumSequence(0, 1)
+## Constructors
+NumSequence(seq::AbstractVector{T}, q::Integer) where {T} = NumSequence{T,q}(seq)
+function NumSequence(seq::AbstractVector)
+    err = ArgumentError("Provide a maximum value `q`.")
+    throw(err)
+    return nothing
 end
-NumSequence{T}(L::Integer) where {T<:Integer} = NumSequence(L; T)
 
-Base.copy(x::NumSequence) = NumSequence(copy(x.seq), x.q)
+function NumSequence{T,q}(L::Integer) where {T,q}
+    seq = rand(T(1):T(q), L)
+    return NumSequence{T,q}(seq)
+end
+NumSequence(L::Integer, q::Integer; T=IntType) = NumSequence{T,q}(L)
 
+Base.copy(x::NumSequence{T,q}) where {T,q} = NumSequence(copy(x.seq), q)
+
+function Base.getproperty(x::NumSequence{T,q}, sym::Symbol) where {T,q}
+    if sym == :q
+        return q
+    elseif hasproperty(x, sym)
+        return getfield(x, sym)
+    end
+    throw(ErrorException("type NumSequence has no field $sym"))
+end
 #===========================================================================#
 ########################## Converting to Alignment ##########################
 #===========================================================================#

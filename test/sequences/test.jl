@@ -63,8 +63,10 @@ end
 @testset "NumSequence Tests" begin
     # Test constructing the object
     L, q = (10, 5)
-    num_seq = PottsEvolver.NumSequence(L, q; T=Int32)
-    @test num_seq isa PottsEvolver.NumSequence{Int32}
+    T = Int32
+
+    num_seq = NumSequence(L, q; T)
+    @test num_seq isa NumSequence{T,T(q)}
     @test length(num_seq) == L
 
     # Test indexing and setting the index in a sequence
@@ -76,13 +78,24 @@ end
     num_seq_copy = copy(num_seq)
     @test num_seq_copy == num_seq
     @test pointer(num_seq.seq) != pointer(num_seq_copy.seq)
+    num_seq_copy[4] = 1 # num_seq[4] == 2 from test above
+    @test num_seq_copy != num_seq
+
+    # Test manually copying
+    num_seq_copy = NumSequence{T,q}(copy(PottsEvolver.sequence(num_seq)))
+    @test num_seq_copy == num_seq
+
+    # Test failures
+    @test_throws ArgumentError NumSequence([1, 2, 3]) # need to provide q
+    @test_throws ArgumentError NumSequence([1, 2, 3], 2)
+    @test_throws ArgumentError NumSequence([0, 1, 2], 21)
 end
 
 @testset "Sequences to alignent" begin
     M, L, q = (3, 10, 5)
-    numseqs = map(_ -> PottsEvolver.NumSequence(L, q; T=Int32), 1:M)
-    aaseqs = map(_ -> AASequence(L), 1:M) # default integer type should be IntType
-    codonseqs = map(_ -> CodonSequence(L), 1:M)
+    numseqs = [NumSequence(L, q; T=Int32) for _ in 1:M]
+    aaseqs = [AASequence(L) for _ in 1:M] # default integer type should be IntType
+    codonseqs = [CodonSequence(L) for _ in 1:M]
 
     A = Alignment(numseqs)
     @test A isa Alignment{Nothing,Int32}

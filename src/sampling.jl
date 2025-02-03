@@ -185,7 +185,7 @@ function get_init_sequence(s0::AbstractVector{<:Integer}, g; verbose=true)
             error("Sequence $s0 incompatible with graph of size $(size(g))")
         end
     else
-        NumSequence(s0)
+        NumSequence(s0, size(g).q)
     end
 end
 
