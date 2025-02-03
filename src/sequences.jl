@@ -170,7 +170,7 @@ julia> copied_seq = copy(num_seq)
     function NumSequence{T,q}(seq::AbstractVector) where {T<:Integer,q}
         @argcheck q isa Integer "Expect `Integer` for maximum value `q`. Instead $q"
         @argcheck all(x -> 0 < x <= q, seq) "Expect `0 < x < q=$q` for all elements."
-        q_convert = convert(T,q) # can potentially fail if say T==Int8 and q very large.
+        q_convert = convert(T, q) # can potentially fail if say T==Int8 and q very large.
         return new{T,q_convert}(seq)
     end
 end

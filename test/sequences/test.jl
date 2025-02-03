@@ -86,9 +86,9 @@ end
     @test num_seq_copy == num_seq
 
     # Test failures
-    @test_throws ArgumentError NumSequence([1,2,3]) # need to provide q
-    @test_throws ArgumentError NumSequence([1,2,3], 2)
-    @test_throws ArgumentError NumSequence([0,1,2], 21)
+    @test_throws ArgumentError NumSequence([1, 2, 3]) # need to provide q
+    @test_throws ArgumentError NumSequence([1, 2, 3], 2)
+    @test_throws ArgumentError NumSequence([0, 1, 2], 21)
 end
 
 @testset "Sequences to alignent" begin
