@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.0
+# v0.20.4
 
 using Markdown
 using InteractiveUtils
@@ -8,6 +8,7 @@ using InteractiveUtils
 begin
     using Pkg
     Pkg.activate(".")
+	using Random
     using UnPack
     using PlutoUI
     using PottsEvolver
@@ -71,7 +72,7 @@ potts.alphabet
 potts.alphabet(4) # convert integers to chars
 
 # ╔═╡ 25e2f982-9a3c-4499-b2b9-dee74dc36951
-potts.alphabet('D') # or the reverse
+potts.alphabet('H') # or the reverse
 
 # ╔═╡ ed8559ec-2c67-4338-bcbb-20803700c24c
 md"# Sampling an MCMC chain"
@@ -88,6 +89,9 @@ result = let
     parameters = SamplingParameters(; Teq=100, burnin=0)
     mcmc_sample(potts, M, parameters; init=:random_codon, translate_output=true)
 end;
+
+# ╔═╡ b7d03a71-eabc-43d9-97b4-8e388878718a
+result
 
 # ╔═╡ 7b174b8a-13bd-4534-bc0e-595149f9411f
 md"""
@@ -112,6 +116,9 @@ We can use it to iterate over sequences, write the result to a fasta file, etc..
 
 # ╔═╡ 63fd2b58-4a71-4258-9eb4-96fb491bdd37
 sequences[1] # the first sample (here also the initial sequence)
+
+# ╔═╡ af3a221c-4998-43b0-9e2a-f1fb9da02536
+[potts.alphabet(i) for i in sequences[1]]
 
 # ╔═╡ 42e624ed-b38d-4908-a4fa-7bc635c78846
 size(sequences) # length L x 10 sequences
@@ -168,22 +175,23 @@ the docstring of `PottsEvolver.get_init_sequence` will be helpful.
 
 # ╔═╡ aabe38f7-8f6e-4b66-949f-5da952193237
 let
+	Random.seed!(400)
     not_stop = filter(x -> x != 13 && x != 5, 1:21) # 
     s_not_valid = rand(not_stop, L) # Vector{Int} is not a valid input
-
     # Valid initial sequences
     aa_seq = AASequence(s_not_valid) # assumes the sequence is amino acids
     codon_seq = CodonSequence(s_not_valid) # assumes the sequence is codons
-    num_seq = PottsEvolver.NumSequence(s_not_valid) # assumes the sequence has no biological meaning
+    num_seq = PottsEvolver.NumSequence(s_not_valid, 21) # assumes the sequence has no biological meaning
 
     # Using this for sampling
-    parameters = SamplingParameters(; Teq=100, burnin=0)
+	parameters = SamplingParameters(; Teq=100, burnin=0)
+	mcmc_sample(potts, 10, parameters; init=:random_aa) # operates on aa, but starting from a random sequence
     mcmc_sample(potts, 10, aa_seq, parameters) # use "normal" amino acid based mcmc 
-    mcmc_sample(potts, 10, codon_seq, parameters) # use codon based mcmc
-
+    
     mcmc_sample(potts, 10, parameters; init=aa_seq) # this also works
     mcmc_sample(potts, 10, parameters; init=s_not_valid) # should work, but it's less clear
-    mcmc_sample(potts, 10, parameters; init=:random_aa) # operates on aa, but starting from a random sequence
+	res = mcmc_sample(potts, 10, codon_seq, parameters, translate_output=false) # use codon based mcmc
+	res.sequences.alphabet
 end
 
 # ╔═╡ 65c82b80-cdfb-47f4-b398-989ec42ebbb3
@@ -243,6 +251,11 @@ First, we read a small tree. It is a balanced binary tree with `8` leaves, and a
 # ╔═╡ 4a522c90-0f74-4b35-a2c8-f64726f4875d
 tree = read_tree("small_tree.nwk")
 
+# ╔═╡ e1cfc82e-266c-48ac-85f3-c75f8c0cf7ca
+for c in children(root(tree))
+	println(branch_length(c))
+end
+
 # ╔═╡ c463db7d-cb3c-407b-b8ec-03ce04ade53c
 md"""
 Sampling on this tree is easy: just call `mcmc_sample` with the tree object instead of the number of sequences `M`. The number of steps on each branch will be equal to the length of the branch. 
@@ -271,10 +284,16 @@ For each of these, the sequences are labeled using the label of tree nodes.
 # ╔═╡ 77ed2514-772c-45be-8b04-f4593d80a462
 let
     # Find a sequence given a leaf label
-    interesting_leaf = label(first(leaves(tree)))
+    interesting_leaf = label(collect(leaves(tree))[5])
     @info "Let's look at leaf $(interesting_leaf)"
     seq = find_sequence(interesting_leaf, result_tree.leaf_sequences)[2]
     @info "Corresponding sequence: $(result_tree.leaf_sequences.alphabet(seq))"
+
+	interesting_node = label(collect(internals(tree))[6])
+    @info "Let's look at node $(interesting_node)"
+    seq = find_sequence(interesting_node, result_tree.internal_sequences)[2]
+    @info "Corresponding sequence: $(result_tree.internal_sequences.alphabet(seq))"
+	
 end
 
 # ╔═╡ e7e26419-29d1-4444-a248-5979c4ba755f
@@ -335,10 +354,12 @@ end
 # ╟─ed8559ec-2c67-4338-bcbb-20803700c24c
 # ╟─b1408a8a-f62d-46f2-ad05-a611324793ad
 # ╠═6576b8ba-762c-4e74-90b5-76f3725557d7
+# ╠═b7d03a71-eabc-43d9-97b4-8e388878718a
 # ╟─7b174b8a-13bd-4534-bc0e-595149f9411f
 # ╠═7b455214-13e5-4646-a9c5-11e538475bca
 # ╟─f871ce6f-c80a-433e-a954-d34002d7b5c1
 # ╠═63fd2b58-4a71-4258-9eb4-96fb491bdd37
+# ╠═af3a221c-4998-43b0-9e2a-f1fb9da02536
 # ╠═42e624ed-b38d-4908-a4fa-7bc635c78846
 # ╟─97aa28b3-012b-4614-9e2a-7706d9d48402
 # ╠═0017a217-7cd6-4974-b936-30f93631396e
@@ -357,6 +378,7 @@ end
 # ╟─434db5aa-92d4-45dc-abda-30757305aa5e
 # ╟─25215879-eb19-46a6-bbdf-15bd96e18000
 # ╠═4a522c90-0f74-4b35-a2c8-f64726f4875d
+# ╠═e1cfc82e-266c-48ac-85f3-c75f8c0cf7ca
 # ╟─c463db7d-cb3c-407b-b8ec-03ce04ade53c
 # ╠═b1aea1ba-c13d-4205-8761-3c6bf557da05
 # ╟─91103fb3-896b-420b-ba28-51871f725a11
